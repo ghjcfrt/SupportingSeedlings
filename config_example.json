@@ -1,0 +1,10 @@
+{
+  "XF_APPID": "your_appid_here",
+  "XF_API_KEY": "your_api_key_here",
+  "XF_API_SECRET": "your_api_secret_here",
+  "XF_URL": "wss://sparkcube-api.xf-yun.com/v1/customize",
+  "XF_DOMAIN": "max",
+  "XF_TEMPERATURE": 0.95,
+  "XF_TOPK": 6,
+  "XF_MAX_TOKENS": 4096
+}
