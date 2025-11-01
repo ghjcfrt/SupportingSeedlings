@@ -453,6 +453,8 @@ def main() -> None:
     # 初始化日志与异常捕获，避免整体崩溃并记录错误
     # 从 config.json 读取 LOG_LEVEL/DEBUG 开关，或使用环境变量 LOG_LEVEL
     debug_flag = None
+    log_to_console = None
+    console_level = None
     try:
         candidates = [
             pathlib.Path.cwd() / "config.json",
@@ -471,11 +473,20 @@ def main() -> None:
                     break
                 if data.get("debug") is True:
                     debug_flag = True
-                    break
+                    # 不 break，继续看看是否设置了控制台日志
+                # 读取控制台日志开关/级别
+                raw_console = data.get("LOG_TO_CONSOLE") or data.get("log_to_console")
+                if isinstance(raw_console, bool):
+                    log_to_console = raw_console
+                elif isinstance(raw_console, str):
+                    log_to_console = raw_console.strip().lower() in {"1", "true", "yes", "on"}
+                raw_console_level = data.get("LOG_CONSOLE_LEVEL") or data.get("console_level")
+                if isinstance(raw_console_level, str):
+                    console_level = raw_console_level.strip().upper()
     except Exception:
         debug_flag = None
 
-    setup_logging(debug=debug_flag)
+    setup_logging(debug=debug_flag, log_to_console=log_to_console, console_level=console_level)
     install_excepthook(show_dialog=True)
     install_qt_message_logging()
 
@@ -483,20 +494,6 @@ def main() -> None:
     win = KidsWindow()
     win.show()
     try:
-        rc = app.exec()
-    except Exception:
-        # 理论上不会到这里，保底记录
-        import logging
-
-        logging.exception("Qt event loop crashed")
-        rc = 1
-    sys.exit(rc)
-
-
-if __name__ == "__main__":
-    main()
-if __name__ == "__main__":
-    main()
         rc = app.exec()
     except Exception:
         # 理论上不会到这里，保底记录

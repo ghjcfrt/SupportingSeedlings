@@ -4,7 +4,6 @@ __pycache__/
 .venv/
 
 # UV / venv
-uv.lock
 .python-version
 
 # Local config with secrets
@@ -12,3 +11,6 @@ config.json
 
 # Outputs
 results/
+
+# Log files
+logs/
