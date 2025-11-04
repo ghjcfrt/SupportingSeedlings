@@ -3,7 +3,9 @@ from __future__ import annotations
 import logging
 import logging.handlers
 import os
+import re
 import sys
+import threading
 from typing import Optional
 
 
@@ -143,3 +145,78 @@ def install_qt_message_logging() -> None:
         qInstallMessageHandler(handler)
     except Exception:
         pass
+
+
+def suppress_stderr_patterns(patterns: list[str]) -> None:
+    """Suppress lines written to process-level stderr that match any of the patterns.
+
+    This works at the file-descriptor level (os.dup2), so it can filter messages
+    emitted by native libraries (e.g., libpng) that bypass Python's logging system.
+    """
+    try:
+        import os
+
+        # Prepare regex matcher (case-insensitive contains)
+        regs = [re.compile(re.escape(pat), re.IGNORECASE) for pat in patterns if pat]
+        if not regs:
+            return
+
+        # Duplicate original stderr fd and create a pipe
+        orig_fd = os.dup(2)
+        rfd, wfd = os.pipe()
+
+        # Redirect fd=2 (stderr) to the write end of the pipe
+        os.dup2(wfd, 2)
+        try:
+            os.close(wfd)
+        except Exception:
+            pass
+
+        def _reader() -> None:
+            buf = b""
+            # Use the original stderr buffered writer
+            try:
+                orig = os.fdopen(orig_fd, "wb", closefd=True)
+            except Exception:
+                orig = None
+            while True:
+                try:
+                    chunk = os.read(rfd, 4096)
+                    if not chunk:
+                        break
+                    buf += chunk
+                    while b"\n" in buf:
+                        line, buf = buf.split(b"\n", 1)
+                        try:
+                            text = line.decode("utf-8", errors="ignore")
+                        except Exception:
+                            text = ""
+                        # Filter lines that match any pattern
+                        drop = any(reg.search(text) for reg in regs)
+                        if not drop and orig is not None:
+                            orig.write(line + b"\n")
+                            orig.flush()
+                except Exception:
+                    break
+            # Flush remaining buffer
+            if buf and orig is not None:
+                try:
+                    orig.write(buf)
+                    orig.flush()
+                except Exception:
+                    pass
+            try:
+                os.close(rfd)
+            except Exception:
+                pass
+
+        t = threading.Thread(target=_reader, name="stderr-filter", daemon=True)
+        t.start()
+    except Exception:
+        # Fail silently to avoid affecting app startup
+        pass
+
+
+def suppress_libpng_iccp_warning() -> None:
+    """Convenience wrapper to suppress the common libpng iCCP warning spam."""
+    suppress_stderr_patterns(["libpng warning: iCCP: known incorrect sRGB profile"])

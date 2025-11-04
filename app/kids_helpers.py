@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QComboBox, QDialog, QHBoxLayout, QLabel,
                                QWidget)
 
 from agent import Advisor, ChildProfile
-from games import QuizGenerator
+from games import ArithmeticDialog, PictorialEquationDialog, SudokuDialog
 from recommend import Recommender, RecommendRequest
 
 
@@ -53,43 +53,42 @@ class GameDialog(QDialog):
     def __init__(self, parent: QWidget | None = None, *, recent_object: Optional[str] = None, tts=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("潜能开发小游戏")
+        self.setFixedSize(360, 260)
         self._tts = tts
-        self._gen = QuizGenerator()
         self._recent = recent_object
         self._build_ui()
-        self._new_quiz()
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
-        self._q_label = QLabel("问题将出现在这里")
-        self._q_label.setWordWrap(True)
-        root.addWidget(self._q_label)
-        self._opts: List[QPushButton] = []
-        for i in range(3):
-            btn = QPushButton(f"选项 {i+1}")
-            btn.clicked.connect(lambda _, idx=i: self._choose(idx))
-            self._opts.append(btn)
-            root.addWidget(btn)
-        row = QHBoxLayout()
-        self._btn_next = QPushButton("下一题")
-        self._btn_next.clicked.connect(self._new_quiz)
-        row.addWidget(self._btn_next)
-        root.addLayout(row)
+        title = QLabel("选择一个小游戏开始：")
+        title.setWordWrap(True)
+        root.addWidget(title)
 
-    def _new_quiz(self) -> None:
-        self._quiz = self._gen.generate(self._recent)
-        self._q_label.setText(self._quiz.question)
-        for i, text in enumerate(self._quiz.options):
-            self._opts[i].setText(text)
+        btn1 = QPushButton("两位数口算（+ − × ÷）")
+        btn1.clicked.connect(self._open_arithmetic)
+        root.addWidget(btn1)
 
-    def _choose(self, idx: int) -> None:
-        correct = (idx == self._quiz.answer_index)
-        if self._tts:
-            if correct:
-                self._tts.speak("答对啦！")
-            else:
-                self._tts.speak("再想想，我们看看提示。")
-            self._tts.speak(self._quiz.tip)
+        btn2 = QPushButton("图文算式（表情计数）")
+        btn2.clicked.connect(self._open_pictorial)
+        root.addWidget(btn2)
+
+        btn3 = QPushButton("数独（9×9）")
+        btn3.clicked.connect(self._open_sudoku)
+        root.addWidget(btn3)
+
+        root.addStretch(1)
+
+    def _open_arithmetic(self) -> None:
+        dlg = ArithmeticDialog(self, tts=self._tts)
+        dlg.exec()
+
+    def _open_pictorial(self) -> None:
+        dlg = PictorialEquationDialog(self, tts=self._tts)
+        dlg.exec()
+
+    def _open_sudoku(self) -> None:
+        dlg = SudokuDialog(self)
+        dlg.exec()
 
 
 class AdvisorDialog(QDialog):

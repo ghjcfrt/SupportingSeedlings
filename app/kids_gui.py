@@ -34,7 +34,7 @@ from detection.coco_intros_cn import get_intro_by_id
 from voice.tts_queue import TTSManager
 
 from .logging_utils import (install_excepthook, install_qt_message_logging,
-                            setup_logging)
+                            setup_logging, suppress_libpng_iccp_warning)
 
 
 def _bgr_to_qpix(img_bgr: np.ndarray) -> QPixmap:
@@ -455,6 +455,11 @@ def main() -> None:
     debug_flag = None
     log_to_console = None
     console_level = None
+    # 优先安装 libpng iCCP 警告过滤，避免控制台刷屏
+    try:
+        suppress_libpng_iccp_warning()
+    except Exception:
+        pass
     try:
         candidates = [
             pathlib.Path.cwd() / "config.json",
@@ -489,6 +494,19 @@ def main() -> None:
     setup_logging(debug=debug_flag, log_to_console=log_to_console, console_level=console_level)
     install_excepthook(show_dialog=True)
     install_qt_message_logging()
+    # 降低 OpenCV 的日志级别（若版本支持），进一步抑制三方库输出
+    try:
+        import cv2 as _cv2
+        lvlmod = getattr(getattr(_cv2, "utils", None), "logging", None)
+        if lvlmod is not None:
+            try:
+                lvl = getattr(lvlmod, "LOG_LEVEL_ERROR", None)
+                if lvl is not None:
+                    lvlmod.setLogLevel(lvl)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
     app = QApplication(sys.argv)
     win = KidsWindow()

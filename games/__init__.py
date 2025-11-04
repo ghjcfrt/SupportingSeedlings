@@ -1,3 +1,9 @@
-from .simple_quiz import QuizGenerator, QuizItem
+from .arithmetic import ArithmeticDialog
+from .pictorial_equation import PictorialEquationDialog
+from .sudoku_qt import SudokuDialog
 
-__all__ = ["QuizItem", "QuizGenerator"]
+__all__ = [
+	"ArithmeticDialog",
+	"PictorialEquationDialog",
+	"SudokuDialog",
+]
