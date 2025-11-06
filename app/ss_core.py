@@ -1,4 +1,4 @@
-"""儿童识物核心
+"""扶苗核心
 
 提供基于 YOLO 的简化检测能力：
 - 加载一次模型，支持图片/帧检测
@@ -15,7 +15,8 @@ import cv2
 import numpy as np
 
 try:
-    from ultralytics import YOLO  # pyright: ignore[reportPrivateImportUsage]
+    # 优先使用公开入口（Ultralytics v8 推荐）
+    from ultralytics import YOLO  # type: ignore[attr-defined]
 except ImportError as e:
     YOLO = None
     _YOLO_IMPORT_ERR = e
@@ -43,6 +44,7 @@ def _select_device(requested: str | None) -> str:
 
 @dataclass
 class ChildConfig:
+    """扶苗检测配置"""
     model_path: str = "models/yolo/yolo11n.pt"
     conf: float = 0.6
     img_size: list[int] | None = None  # None -> 原始尺寸
@@ -51,6 +53,7 @@ class ChildConfig:
 
 @dataclass
 class Detection:
+    """ 检测结果 """
     cls_id: int
     label_cn: str
     conf: float
@@ -58,7 +61,7 @@ class Detection:
 
 
 class ChildDetector:
-    """面向儿童识物教学的简化检测封装"""
+    """面向扶苗教学的简化检测封装"""
 
     def __init__(self, cfg: ChildConfig | None = None) -> None:
         """初始化检测器"""

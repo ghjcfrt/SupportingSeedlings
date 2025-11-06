@@ -4,9 +4,11 @@
 """
 
 from .psy_advisor import Advisor, ChildProfile, analyze_profile
+from .reply_utils import clean_advisor_reply
 
 __all__ = [
     "ChildProfile",
     "Advisor",
     "analyze_profile",
+    "clean_advisor_reply",
 ]

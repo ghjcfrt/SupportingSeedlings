@@ -15,15 +15,13 @@ from wsgiref.handlers import format_date_time
 
 try:  #  运行时校验
     import websocket
-    if not hasattr(websocket, "WebSocketApp"):
-        raise ImportError("'websocket' 模块非 websocket-client 实现，缺少 WebSocketApp")
     _WS_IMPORT_ERR: Exception | None = None
 except Exception as _e:  #  内部状态
     websocket = None
     _WS_IMPORT_ERR = _e
 finally:
     # 使用 Any 包装，避免静态分析对属性可用性的误报
-    _ws: Any = websocket  # type: ignore
+    _ws: Any = websocket
 
 # 科大讯飞 SparkCube WebSocket 客户端封装
 # 依赖 test/SparkApi2.py 的协议思路，使用 websocket-client 直连服务，
@@ -33,6 +31,7 @@ finally:
 
 @dataclass
 class SparkConfig:
+    """讯飞 SparkCube 配置参数。"""
     # 注意：不要在字段默认值里调用 getenv（会在导入时就固定下来）。
     # 统一走 from_env() 在实例化时读取环境。
     appid: str = ""
@@ -46,6 +45,7 @@ class SparkConfig:
 
     @staticmethod
     def from_env() -> "SparkConfig":
+        """ 从环境变量构造配置对象。"""
         return SparkConfig(
             appid=os.getenv("XF_APPID", ""),
             api_key=os.getenv("XF_API_KEY", ""),
@@ -81,7 +81,9 @@ class SparkConfig:
 
 
 class SparkClient:
+    """ 讯飞 SparkCube WebSocket 客户端。"""
     def __init__(self, cfg: Optional[SparkConfig] = None) -> None:
+        """ 初始化客户端。"""
         # 优先使用传入配置；否则从环境变量构造；若缺失则尝试自动加载根目录 config.json
         self.cfg: SparkConfig = cfg or SparkConfig.from_env()
         debug_lines: list[str] = []
@@ -130,6 +132,7 @@ class SparkClient:
 
     # --- 私有：鉴权 URL 生成 ---
     def _create_ws_url(self) -> str:
+        """ 创建带鉴权的 WebSocket URL。"""
         host = urlparse(self.cfg.url).netloc
         path = urlparse(self.cfg.url).path
         now = datetime.now()
@@ -178,6 +181,7 @@ class SparkClient:
         answer_chunks: list[str] = []
 
         def on_message(ws, message):
+            """ 处理收到的消息。"""
             data = json.loads(message)
             code = data.get("header", {}).get("code", -1)
             if code != 0:
@@ -194,12 +198,15 @@ class SparkClient:
                 ws.close()
 
         def on_open(ws):
+            """ 连接打开时发送请求。"""
             ws.send(json.dumps(payload))
 
         def on_error(ws, error):
+            """ 处理错误。"""
             answer_chunks.append(f"[错误]{error}")
 
         def on_close(ws, *args):
+            """ 连接关闭时的处理。"""
             pass
 
         _ws.enableTrace(False)

@@ -28,6 +28,7 @@ _ISOLATED = True if _iso_env is None else _iso_env.strip().lower() in {"1", "tru
 
 
 class _DedupState:
+    """ 去重状态记录器 """
     __slots__ = ("last_text_norm", "last_time", "rate_toggle")
 
     def __init__(self) -> None:

@@ -1,6 +1,6 @@
 from .arithmetic import ArithmeticDialog
 from .pictorial_equation import PictorialEquationDialog
-from .sudoku_qt import SudokuDialog
+from .sudoku import SudokuDialog
 
 __all__ = [
 	"ArithmeticDialog",

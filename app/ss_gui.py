@@ -263,6 +263,7 @@ class KidsWindow(QWidget):
     def _on_open_image(self) -> None:
         """打开图片或本地视频文件
 
+        需求变化：将“本地视频识别”和“本地图片识别”合并到该入口；
         若选择图片则仅加载并显示，点击“识别并播报”处理该图片；
         若选择视频则直接以定时器方式开启逐帧检测，复用“停止”按钮结束。
         """
@@ -534,7 +535,6 @@ def main() -> None:
         logging.exception("Qt event loop crashed")
         rc = 1
     sys.exit(rc)
-
 
 if __name__ == "__main__":
     main()

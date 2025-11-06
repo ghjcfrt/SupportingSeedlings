@@ -1,4 +1,4 @@
-# ChildObjectRecognition（COR）—— 儿童识物（基于 YOLOv11）
+# ChildObjectRecognition（COR）—— 扶苗（基于 YOLOv11）
 
 ChildObjectRecognition（简称 COR）是一个基于 Ultralytics YOLOv11 的实时目标检测小应用，提供图形界面与命令行两种使用方式，可将检测结果保存为图片与可选的 YOLO txt 标签。
 
@@ -59,7 +59,7 @@ uv run python -V
 
 - DirectShow（pygrabber）：由 `cor_io/camera_utils.py` 枚举输入设备名称，依赖少、速度快。
 
-说明：儿童识物版本已移除基于 WMI（pywin32）的摄像头信息查询路径。
+说明：扶苗版本已移除基于 WMI（pywin32）的摄像头信息查询路径。
 
 安装与验证（PowerShell）：
 
@@ -176,8 +176,8 @@ uv run python -m detection.cli --save-txt
 
 ```
 app/                # GUI 与核心
-  kids_gui.py       # 儿童识物 GUI（PySide6）
-  kids_core.py      # 儿童识物核心逻辑
+  kids_gui.py       # 扶苗 GUI（PySide6）
+  kids_core.py      # 扶苗核心逻辑
 
 detection/          # YOLO 检测核心与 CLI 封装
   core.py           # YOLOConfig/YOLODetector，摄像头枚举、保存、TTS 播报

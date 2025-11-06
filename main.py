@@ -1,8 +1,8 @@
 """项目便捷入口
 
 用法
-    - python main.py                  启动 儿童识物 GUI
-    - python main.py gui             启动 儿童识物 GUI
+    - python main.py                  启动 扶苗 GUI
+    - python main.py gui             启动 扶苗 GUI
     - python main.py detect [args]   运行检测 CLI
 
 推荐的模块入口（更规范）：
@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import sys
 
-from app.kids_gui import main as kids_main
+from app.ss_gui import main as kids_main
 from detection.cli import main as detect_main
 
 
 def _run_gui() -> None:
-    """启动 儿童识物 GUI（默认）"""
+    """启动 扶苗 GUI（默认）"""
     kids_main()
 
 
@@ -31,8 +31,8 @@ def _print_usage() -> None:
     """打印用法说明"""
     print(
         "用法:\n"
-        "  python main.py                 # 启动 儿童识物 GUI（默认）\n"
-        "  python main.py gui             # 启动 儿童识物 GUI\n"
+        "  python main.py                 # 启动 扶苗 GUI（默认）\n"
+        "  python main.py gui             # 启动 扶苗 GUI\n"
         "  python main.py detect [参数]   # 运行检测 CLI\n",
         end="",
     )

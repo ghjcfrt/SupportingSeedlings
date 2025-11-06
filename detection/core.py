@@ -58,6 +58,7 @@ def _as_optional_int_list(val: str | None) -> list[int] | None:
 
 @dataclass
 class YOLOConfig:
+    """ YOLOv11 检测配置 """
     # 模型与设备
     model_path: str = field(default_factory=lambda: _env("MODEL_PATH", "models/yolo/yolo11n.pt"))
     device: str = field(default_factory=lambda: _env("DEVICE", "auto"))
@@ -179,6 +180,7 @@ def _select_device(requested: str | None = None) -> str:
 
 
 class YOLODetector:
+    """YOLOv11 检测器封装 提供检测与结果保存功能"""
     def __init__(self, cfg: YOLOConfig):
         """初始化检测器"""
         self.cfg = cfg

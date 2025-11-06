@@ -9,6 +9,7 @@ from integrations import SparkClient, SparkConfig
 
 @dataclass
 class ChildProfile:
+    """ 儿童画像 """
     age: int = 5
     mood: str = "愉快"
     interests: List[str] = field(default_factory=list)
@@ -16,15 +17,18 @@ class ChildProfile:
 
 
 class ChatSession:
+    """多轮对话会话"""
     def __init__(self, system_prompt: Optional[str] = None) -> None:
         self.messages: List[Dict[str, str]] = []
         if system_prompt:
             self.messages.append({"role": "system", "content": system_prompt})
 
     def append_user(self, text: str) -> None:
+        """ 添加用户提问 """
         self.messages.append({"role": "user", "content": text})
 
     def append_assistant(self, text: str) -> None:
+        """ 添加助理回复 """
         self.messages.append({"role": "assistant", "content": text})
 
 
@@ -37,6 +41,7 @@ class Advisor:
 
     @staticmethod
     def _default_system(profile: Optional[ChildProfile]) -> str:
+        """ 默认系统提示词 """
         meta = ""
         if profile is not None:
             meta = f"孩子年龄:{profile.age}; 情绪:{profile.mood}; 兴趣:{','.join(profile.interests)}; 备注:{profile.notes}"
@@ -47,9 +52,11 @@ class Advisor:
         )
 
     def start_session(self, profile: Optional[ChildProfile] = None) -> ChatSession:
+        """ 开始新会话 """
         return ChatSession(self._default_system(profile))
 
     def ask(self, session: ChatSession, text: str) -> str:
+        """ 多轮对话问答 """
         session.append_user(text)
         reply = self.client.chat(session.messages)
         if reply:

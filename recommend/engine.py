@@ -11,6 +11,7 @@ ContentType = Literal["绘本", "故事音乐", "科普视频"]
 
 @dataclass
 class Recommendation:
+    """ 单条推荐结果。"""
     title: str
     url: str | None
     content_type: ContentType
@@ -22,6 +23,7 @@ class Recommendation:
 
 @dataclass
 class RecommendRequest:
+    """推荐请求参数。"""
     age: int
     interests: List[str]
     level: str = "启蒙"
@@ -32,9 +34,11 @@ class Recommender:
     """基于讯飞大模型生成结构化推荐（JSON 输出）"""
 
     def __init__(self) -> None:
+        """ 初始化推荐引擎。 """
         self._client = SparkClient()
 
     def recommend(self, req: RecommendRequest, k: int = 5) -> List[Recommendation]:
+        """生成推荐列表。"""
         sys = (
             "你是一名儿童内容推荐助手，请基于孩子年龄与兴趣生成适合的推荐列表，"
             "涵盖‘绘本/故事音乐/科普视频’三类中的至少一类；"

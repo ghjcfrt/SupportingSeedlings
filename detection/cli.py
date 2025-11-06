@@ -9,6 +9,7 @@ from .core import main as _core_main
 
 
 def main(argv: list[str] | None = None) -> None:
+    """ 命令行检测入口"""
     _core_main(argv)
 
 

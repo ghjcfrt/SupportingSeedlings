@@ -27,6 +27,7 @@ class TTSManager:
         max_queue: int = 32,
         max_age_sec: float | None = 2.0,
     ) -> None:
+        """ 初始化 TTS 管理器。"""
         self._tts: TTSLike | None = tts_module
         self._log = logger or logging.getLogger("TTSManager")
         self._dup_window = float(dup_window)

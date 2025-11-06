@@ -23,6 +23,7 @@ except (ImportError, OSError):  # 极端情况下缺失则提供空映射
 
 
 def _noop(_: str) -> None:
+    """ 空操作函数 """
     return None
 
 
@@ -116,6 +117,7 @@ class Announcer:
         self,
         min_interval_sec: float = 1.5,
     ) -> None:
+        """ 初始化播报器。"""
         self._last_text: str | None = None
         self._last_t: float = 0.0
         self._min_interval = float(min_interval_sec)

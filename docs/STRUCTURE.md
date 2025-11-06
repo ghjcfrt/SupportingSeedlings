@@ -1,4 +1,4 @@
-# 目录结构说明（儿童识物版）
+# 目录结构说明（扶苗版）
 
 目标：
 - 提供稳定的 GUI 与 CLI 入口，简化使用与维护。
@@ -8,7 +8,7 @@
 本项目采用模块化组织，核心分为 GUI、检测核心、语音与设备工具等部分。
 
 顶层关键文件：
-- `main.py`：统一入口，根据参数路由到 儿童识物 GUI/检测 CLI
+- `main.py`：统一入口，根据参数路由到 扶苗 GUI/检测 CLI
 - `pyproject.toml`：依赖与工具配置（uv 源、ruff 规则等）
 
 核心目录结构：
@@ -16,7 +16,7 @@
 ```
 app/
   kids_gui.py       # PySide6 GUI：打开图片/摄像头识物与播报
-  kids_core.py      # 儿童识物核心逻辑与绘制
+  kids_core.py      # 扶苗核心逻辑与绘制
 
 detection/
   core.py           # YOLOConfig/YOLODetector，摄像头枚举、推理与保存
@@ -36,6 +36,42 @@ models/             # 放置模型（例如 yolo11n.pt）
 results/            # 运行输出（帧与 txt）
 docs/STRUCTURE.md   # 本说明
 ```
+
+游戏模块（拆分说明）：
+
+```
+games/
+  __init__.py                 # 导出对外可用对话框类
+  arithmetic.py               # 薄包装（保持向后兼容）
+  pictorial_equation.py       # 薄包装（保持向后兼容）
+  simple_quiz.py              # 薄包装（保持向后兼容）
+  sudoku.py                # 薄包装（保持向后兼容）
+
+  _arithmetic/                # 口算内部实现
+    logic.py                  # 题目生成器（避免重复、范围控制等）
+    ui.py                     # ArithmeticDialog（UI）
+
+  _pictorial_equation/        # 图文方程内部实现
+    logic.py                  # 题目生成器（emoji与等式）
+    ui.py                     # PictorialEquationDialog（UI）
+
+  _simple_quiz/               # 三选一问答内部实现
+    types.py                  # 数据结构 QuizItem
+    generator.py              # 题目生成器 QuizGenerator
+
+  _sudoku/                    # 数独内部实现
+    logic.py                  # 网格生成/挖空/计数/难度配置
+    ui.py                     # SudokuDialog（UI）
+```
+
+对外使用保持不变：
+- `from games import ArithmeticDialog, PictorialEquationDialog, SudokuDialog`
+- `from games.simple_quiz import QuizItem, QuizGenerator`
+
+这样做的好处：
+- UI 与题目/逻辑解耦，便于单元测试与复用；
+- 代码体量分散到更小文件，降低认知负担；
+- 保持原有导入路径不变，避免影响上层模块。
 
 可运行入口：
 - GUI：`python .\main.py` 或 `python -m app.kids_gui`
