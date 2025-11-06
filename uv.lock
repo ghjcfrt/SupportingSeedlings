@@ -106,7 +106,7 @@ wheels = [
 ]
 
 [[package]]
-name = "childobjectrecognition"
+name = "SupportingSeedlings"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

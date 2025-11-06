@@ -1,6 +1,6 @@
-# ChildObjectRecognition（COR）—— 扶苗（基于 YOLOv11）
+# SupportingSeedlings（SS）—— 扶苗（基于 YOLOv11）
 
-ChildObjectRecognition（简称 COR）是一个基于 Ultralytics YOLOv11 的实时目标检测小应用，提供图形界面与命令行两种使用方式，可将检测结果保存为图片与可选的 YOLO txt 标签。
+SupportingSeedlings（简称 SS）是一个基于 Ultralytics YOLOv11 的实时目标检测小应用，提供图形界面与命令行两种使用方式，可将检测结果保存为图片与可选的 YOLO txt 标签。
 
 ## 简介
 
@@ -23,7 +23,7 @@ ChildObjectRecognition（简称 COR）是一个基于 Ultralytics YOLOv11 的实
 - 推理尺寸在未指定时默认使用“原始帧尺寸”，尽量避免拉伸与比例失真。
 - 帧率展示采用指数滑动平均法平滑处理，读数稳定、体验友好。
 - 摄像头打开失败有连续计数与阈值保护，能快速失败并给出清晰提示。
-- 环境变量前缀 COR_ 可覆盖默认值，方便集成与批处理；GUI 与 CLI 共用一套配置逻辑。
+- 环境变量前缀 SS_ 可覆盖默认值，方便集成与批处理；GUI 与 CLI 共用一套配置逻辑。
 
 
 ## 环境要求
@@ -57,9 +57,9 @@ uv run python -V
 
 为在 Windows 下显示更友好的摄像头名称（而不是仅有的 `Camera n` 索引），项目提供 DirectShow 路径：
 
-- DirectShow（pygrabber）：由 `cor_io/camera_utils.py` 枚举输入设备名称，依赖少、速度快。
+- DirectShow（pygrabber）：由 `ss_io/camera_utils.py` 枚举输入设备名称，依赖少、速度快。
 
-说明：扶苗版本已移除基于 WMI（pywin32）的摄像头信息查询路径。
+说明：当前版本已移除基于 WMI（pywin32）的摄像头信息查询路径。
 
 安装与验证（PowerShell）：
 
@@ -68,13 +68,12 @@ uv run python -V
 uv sync
 
 # 自检：打印 DirectShow 设备名（pygrabber）
-uv run python -c "from cor_io import get_directshow_device_names as g; print(g())"
+uv run python -c "from ss_io import get_directshow_device_names as g; print(g())"
 ```
 
 注意事项：
 - 顺序与索引：DirectShow 的枚举顺序与 OpenCV 的摄像头索引通常一致，但不保证 100% 对齐；发生不一致时，以能成功打开的索引为准。
 - 虚拟摄像头：可能出现重复/虚拟设备（如会议软件虚拟摄像头）；可在系统设备管理器中禁用无关设备以简化列表。
-
 
 
 ## 快速开始
@@ -88,7 +87,7 @@ uv run python -c "from cor_io import get_directshow_device_names as g; print(g()
 uv run python .\main.py
 
 # 方式 B：直接运行模块
-uv run python -m app.kids_gui
+uv run python -m app.ss_gui
 ```
 
 2) 命令行实时检测（YOLO）
@@ -101,17 +100,12 @@ uv run python .\main.py detect --model models\yolo\yolo11n.pt --source 0 --conf 
 uv run python -m detection.cli --model models\yolo\yolo11n.pt --source 0 --conf 0.6 --save-txt
 ```
 
-常用参数：
-
 窗口聚焦时按 `q`（或 `--exit-key` 指定）退出。
+
 
 ## 扶苗助手与讯飞接入（心理助理/个性化推荐）
 
-- 新增“扶苗助手”包含三部分：
-- 潜能开发小游戏：在 GUI 里点击“扶苗助手 → 潜能开发小游戏”，会先进入选择页，提供以下三个游戏：
-  - 两位数口算（加减乘除，范围 0~99，除法保证整除）；
-  - 图文算式（以表情/图标表示数量，让孩子数一数并填写总数）；
-  - 数独（9×9，内置示例题，支持检验/重置/换题）。
+- 潜能开发小游戏：在 GUI 里点击“扶苗助手 → 潜能开发小游戏”，包含口算、图文算式、数独等。
 - 心理助理：支持连续对话，基于讯飞 Spark 模型。首次使用需配置凭据。
 - 个性化内容推荐：基于讯飞生成结构化 JSON 推荐列表，支持“一键重新生成”。
 
@@ -133,41 +127,40 @@ $env:XF_API_SECRET = "你的ApiSecret"
 # $env:XF_DOMAIN = "max"
 
 # 运行 GUI
-uv run python -m app.kids_gui
+uv run python -m app.ss_gui
 ```
 
 注意：若未配置凭据，打开“心理助理/个性化推荐”对话框时会提示缺少环境变量，并不会导致整个程序崩溃。
 
 
-
-## 环境变量覆盖（前缀 COR_）
+## 环境变量覆盖（前缀 SS_）
 
 除命令行外，也可用环境变量覆盖默认值（命令行优先）：
 
-- `COR_MODEL_PATH` → `--model`
-- `COR_DEVICE` → `--device`
-- `COR_SOURCE` → `--source`
-- `COR_SAVE_DIR` → `--save-dir`
-- `COR_SAVE_TXT` → `--save-txt`
-- `COR_SELECT_CAMERA` → `--select-camera`
-- `COR_MAX_CAM_INDEX` → `--max-cam`
-- `COR_CONF` → `--conf`
-- `COR_IMG_SIZE` → `--img-size`
-- `COR_WINDOW_NAME` → `--window-name`
-- `COR_TIMESTAMP_FMT` → `--timestamp-fmt`
-- `COR_EXIT_KEY` → `--exit-key`
-- `COR_SHOW_FPS` → `--no-fps`（布尔，命令行为“关闭”）
-- `COR_QUIET_CV` → `--quiet-cv`
-- `COR_CAM_FAIL_LIMIT` → `--cam-fail-limit`
+- `SS_MODEL_PATH` → `--model`
+- `SS_DEVICE` → `--device`
+- `SS_SOURCE` → `--source`
+- `SS_SAVE_DIR` → `--save-dir`
+- `SS_SAVE_TXT` → `--save-txt`
+- `SS_SELECT_CAMERA` → `--select-camera`
+- `SS_MAX_CAM_INDEX` → `--max-cam`
+- `SS_CONF` → `--conf`
+- `SS_IMG_SIZE` → `--img-size`
+- `SS_WINDOW_NAME` → `--window-name`
+- `SS_TIMESTAMP_FMT` → `--timestamp-fmt`
+- `SS_EXIT_KEY` → `--exit-key`
+- `SS_SHOW_FPS` → `--no-fps`（布尔，命令行为“关闭”）
+- `SS_QUIET_CV` → `--quiet-cv`
+- `SS_CAM_FAIL_LIMIT` → `--cam-fail-limit`
 
-摄像头枚举阶段日志抑制：`COR_SUPPRESS_ENUM_ERRORS=1`（默认开启）。
+摄像头枚举阶段日志抑制：`SS_SUPPRESS_ENUM_ERRORS=1`（默认开启）。
 
 示例（PowerShell）：
 
 ```powershell
-$env:COR_MODEL_PATH = ".\models\yolo\yolo11n.pt"
-$env:COR_SOURCE = "0"
-$env:COR_CONF = "0.45"
+$env:SS_MODEL_PATH = ".\models\yolo\yolo11n.pt"
+$env:SS_SOURCE = "0"
+$env:SS_CONF = "0.45"
 uv run python -m detection.cli --save-txt
 ```
 
@@ -176,8 +169,8 @@ uv run python -m detection.cli --save-txt
 
 ```
 app/                # GUI 与核心
-  kids_gui.py       # 扶苗 GUI（PySide6）
-  kids_core.py      # 扶苗核心逻辑
+  ss_gui.py         # 扶苗 GUI（PySide6）
+  ss_core.py        # 扶苗核心逻辑
 
 detection/          # YOLO 检测核心与 CLI 封装
   core.py           # YOLOConfig/YOLODetector，摄像头枚举、保存、TTS 播报
@@ -187,9 +180,8 @@ detection/          # YOLO 检测核心与 CLI 封装
 voice/              # TTS 工具
   tts.py, tts_queue.py, announce.py
 
-cor_io/             # 设备与摄像头名称工具
+ss_io/              # 设备与摄像头名称工具
   camera_utils.py   # DirectShow 设备名称（pygrabber）
-  device_utils.py
 
 models/             # 放置模型（例如 models/yolo/yolo11n.pt）
 results/            # 运行输出
@@ -202,11 +194,11 @@ pyproject.toml      # 依赖与工具配置（uv、ruff 等）
 ## 设计与开发（系统方案 / 核心技术 / 创新创意）
 
 系统方案概览：
-- 统一路由：`main.py` 将启动命令路由到 GUI（`app.kids_gui`）或检测 CLI（`detection.cli`）。
+- 统一路由：`main.py` 将启动命令路由到 GUI（`app.ss_gui`）或检测 CLI（`detection.cli`）。
 - 检测核心：`detection/core.py` 内的 `YOLOConfig`/`YOLODetector` 负责设备选择、摄像头/视频读取、YOLO 推理、绘制保存与 TTS 播报。
-- 图形界面：`app/kids_gui.py` 采用 PySide6；UI 主线程仅负责渲染与交互，推理通过定时器驱动，确保界面不“卡顿”。
+- 图形界面：`app/ss_gui.py` 采用 PySide6；UI 主线程仅负责渲染与交互，推理通过定时器驱动，确保界面不“卡顿”。
 - 语音播报：`voice/tts_queue.py` 维护播报队列，具备去重与“包含词”抑制，避免重复打断；`voice/tts.py` 使用本地 TTS（如 pyttsx3）。
-- 设备与友好名：`cor_io/camera_utils.py` 通过 DirectShow（pygrabber）枚举摄像头名称；在缺省情况下回退到 `Camera n`。
+- 设备与友好名：`ss_io/camera_utils.py` 通过 DirectShow（pygrabber）枚举摄像头名称；在缺省情况下回退到 `Camera n`。
 
 核心技术选型：
 - 目标检测：Ultralytics YOLOv11（Python API），默认权重位于 `models/yolo/yolo11n.pt`。
@@ -223,75 +215,15 @@ pyproject.toml      # 依赖与工具配置（uv、ruff 等）
   - YOLO txt 逐帧导出，便于后续复盘与再训练。
 
 
-## 技术实现与算法逻辑
+## 技术实现与算法逻辑（简要）
 
-### 整体架构与数据流
-
-- 统一入口 `main.py` 将命令路由至：
-  - GUI：`app.kids_gui`（PySide6）
-  - YOLO 检测 CLI：`detection.cli` → `detection.core`
 - 检测核心：`detection/core.py`
-  - 构造 `YOLOConfig`（支持命令行 + 环境变量 COR_ 前缀，命令行优先）
+  - 构造 `YOLOConfig`（支持命令行 + 环境变量 SS_ 前缀，命令行优先）
   - `YOLODetector` 加载 Ultralytics YOLO 模型，读取视频帧并推理
   - 绘制结果、叠加 FPS、保存每帧与可选 YOLO txt；统计类别并做语音播报
-- GUI：`app/kids_gui.py`
+- GUI：`app/ss_gui.py`
   - 简洁布局，支持打开图片与摄像头识物；可选自动播报中心物体与简介
-  - 支持摄像头友好名（`cor_io.camera_utils`）、TTS 队列去抖
-
-
-### YOLO 检测流水线（detection/core.py）
-
-1) 设备选择：
-  - `auto` 优先 `cuda`，再 `mps`，否则 `cpu`（`torch.cuda.is_available()` / `torch.backends.mps.is_available()`）
-2) 输入尺寸：
-  - 若 `--img-size` 未设，则以“原始帧尺寸”作为目标推理尺寸 `imgsz=[h,w]`，减少拉伸与比例失真
-  - 否则按传入的 `640` 或 `640,640` 执行
-3) YOLO txt 导出：
-  - 将每帧的检测框转换为归一化 `x_center y_center width height` 格式保存为 `frame_*.txt`
-4) FPS 显示：
-  - 指数滑动平均平滑 FPS：新 FPS 用 0.1 权重更新，抑制抖动
-5) OpenCV 摄像头：
-  - Windows 优先 `cv2.CAP_DSHOW` 打开整型索引摄像头；读取失败计数超过阈值提前退出
-  - 支持抑制 OpenCV 低层枚举错误日志（仅在“摄像头枚举阶段”临时降低日志级别）
-
-
-
-### GUI 线程与语音集成（app/kids_gui.py, voice/*）
-
-- 主线程纯 UI；推理在 GUI 定时器中循环调用检测器，避免卡顿
-- TTS：`voice.tts_queue.TTSManager` 管理播报队列，提供去重与去“包含词”能力，避免重复与打断
-- 摄像头友好名：`cor_io.camera_utils` 使用 DirectShow 获取友好名称；无依赖则回退为 `Camera n`
-
-
-### 边界与可靠性措施
-
-- 帧读取失败：累计连续失败数，超过阈值提前结束，避免长时间空转
-- OpenCV 日志抑制：仅在“枚举摄像头”阶段降低日志级别，避免刷屏，但不影响运行阶段日志
-- 文本导出：YOLO txt 使用统一归一化格式，便于再训练或标注复核
-- FPS 平滑：指数滑动平均抑制抖动，读数更稳定
-- Windows 打开摄像头：整型索引默认使用 `CAP_DSHOW`，兼容性更好
-
-
-## 优化方案（可选实施）
-
-性能与延迟优化：
-- 模型侧：
-  - CUDA 环境启用 FP16 推理；视需求升级到更大/更小 YOLO 系列权重以平衡精度与速度；
-  - 导出 ONNX/TensorRT，获得更低延迟（需配套部署环境与校验）。
-- 流水线侧：
-  - 采用“采集线程 → 推理线程 → 显示线程”的异步流水线，减少互相阻塞；
-  - 控制摄像头缓冲（丢帧取最新）以降低端到端延迟；
-  - 合理设置 JPEG 编码质量，按需启用按帧保存（或分段保存）。
-
-稳定性与工程化：
-- 增强摄像头热插拔与自动重试；提供更细粒度的错误码与提示。
-- 提供结构化日志与最小化日志等级切换，便于定位问题。
-- 引入简单的对象跟踪（如 ByteTrack/StrongSORT）以获得稳定的目标 ID 与更友好的播报节奏。
-
-可维护性与发布：
-- 通过 `pyproject.toml` 明确分组可选依赖（GUI/DirectShow/CUDA 等）。
-- 提供一键打包（如 PyInstaller）与最小化运行时（便携版）。
-- 在 `results/` 内增加按会话（Session）分组与索引的清理脚本。
+  - 支持摄像头友好名（`ss_io.camera_utils`）、TTS 队列去抖
 
 
 ## 常见问题（FAQ）

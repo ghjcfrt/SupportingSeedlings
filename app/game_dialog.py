@@ -57,4 +57,3 @@ class GameDialog(QDialog):
         """ 打开数独对话框 """
         dlg = SudokuDialog(self)
         dlg.exec()
-        dlg.exec()

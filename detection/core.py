@@ -17,7 +17,7 @@ from ultralytics import YOLO  # pyright: ignore[reportPrivateImportUsage]
 from voice import Announcer
 
 # 环境变量前缀
-ENV_PREFIX = "COR_"  # 例如 COR_MODEL_PATH
+ENV_PREFIX = "SS_"  # 例如 SS_MODEL_PATH
 
 MIN_ROI_SIDE = 8
 READ_FAIL_LIMIT = 10
@@ -27,7 +27,7 @@ MAX_INDEX_DIGITS = 6
 
 
 def _env(name: str, default: Any) -> Any:
-    """读取环境变量：只读取 COR_ 前缀，未设置则返回默认值"""
+    """读取环境变量：只读取 SS_ 前缀，未设置则返回默认值"""
     val = os.getenv(f"{ENV_PREFIX}{name}")
     return default if val is None else val
 
@@ -80,7 +80,7 @@ class YOLOConfig:
     img_size: list[int] | None = field(default_factory=lambda: _as_optional_int_list(_env("IMG_SIZE", "")))
 
     # 界面与输出细节
-    window_name: str = field(default_factory=lambda: _env("WINDOW_NAME", "COR"))
+    window_name: str = field(default_factory=lambda: _env("WINDOW_NAME", "SS"))
     timestamp_fmt: str = field(default_factory=lambda: _env("TIMESTAMP_FMT", "%Y%m%d_%H%M%S"))
     exit_key: str = field(default_factory=lambda: _env("EXIT_KEY", "q"))
 

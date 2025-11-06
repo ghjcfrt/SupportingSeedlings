@@ -4,7 +4,7 @@
 - 自动尝试中文语音（按名称/语言/ID 关键词匹配）
 - 文本去零宽字符与短时间重复语句“音速轻微抖动”防重复感
 - 同步 speak（阻塞）与 speak_async（后台线程）两种调用方式
-- 可通过环境变量 COR_TTS_ISOLATED 控制是否“隔离实例”（每次 speak 使用新 engine）
+- 可通过环境变量 SS_TTS_ISOLATED 控制是否“隔离实例”（每次 speak 使用新 engine）
 """
 
 from __future__ import annotations
@@ -19,11 +19,11 @@ from typing import Any, cast
 
 import pyttsx3
 
-_log = logging.getLogger("COR.TTS")
+_log = logging.getLogger("SS.TTS")
 _lock = threading.RLock()
 _DUP_WINDOW = 2.5
 ZW_CHARS = {"\u200b", "\u200c", "\u200d", "\u200e", "\u200f"}
-_iso_env = os.getenv("COR_TTS_ISOLATED")
+_iso_env = os.getenv("SS_TTS_ISOLATED")
 _ISOLATED = True if _iso_env is None else _iso_env.strip().lower() in {"1", "true", "on", "yes"}
 
 
