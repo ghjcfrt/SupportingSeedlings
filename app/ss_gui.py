@@ -30,8 +30,8 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
                                QMessageBox, QProxyStyle, QPushButton,
                                QStatusBar, QStyle, QVBoxLayout, QWidget)
 
+from detection.api import enumerate_cameras
 from detection.coco_intros_cn import get_intro_by_id
-from detection.core import enumerate_cameras
 from ss_io.camera_utils import get_directshow_device_names
 from voice.tts_queue import TTSManager
 
@@ -140,6 +140,7 @@ class KidsWindow(QWidget):
             self.finished.emit(det, err)
 
     def _start_detector_init(self) -> None:
+        """ 启动一次检测器初始化的准备工作与提示"""
         abs_model = Path(self._cfg.model_path)
         show_threshold = 1_000_000  # 约 1MB 下限
         if (not abs_model.exists()) or abs_model.stat().st_size < show_threshold:
@@ -305,6 +306,7 @@ class KidsWindow(QWidget):
             QTimer.singleShot(5000, self._on_prepare_check)
 
     def _on_detector_inited(self, det: Optional[SSDetector], err: Optional[Exception]) -> None:
+        """ 检测器初始化完成回调。"""
         # 关闭提示
         self._dismiss_model_box("worker finished")
         # 标记当前初始化周期结束
@@ -899,6 +901,7 @@ class KidsWindow(QWidget):
 
 
 def main() -> None:
+    """应用程序入口"""
     # 初始化日志与异常捕获，避免整体崩溃并记录错误
     # 从 config.json 读取 LOG_LEVEL/DEBUG 开关，或使用环境变量 LOG_LEVEL
     debug_flag = None

@@ -1,4 +1,8 @@
-"""YOLO 检测核心实现 提供配置解析 设备选择 摄像头枚举 与检测保存等能力"""
+"""YOLO 检测核心实现
+
+注意：本模块属于内部实现细节，外部代码请通过 `detection.api` 访问公共接口。
+这里提供配置解析、设备选择、摄像头枚举与检测保存等能力。
+"""
 
 from __future__ import annotations
 
@@ -529,10 +533,6 @@ def main(argv: list[str] | None = None):
     detector.detect_and_save()
 
 
-__all__ = [
-    "YOLOConfig",
-    "YOLODetector",
-    "enumerate_cameras",
-    "load_config_from_args",
-    "main",
-]
+# 内部实现模块不对外暴露公共 API；请通过 detection.api 访问稳定接口
+# 空导出可避免 `from detection.core import *` 暴露实现细节
+__all__: list[str] = []

@@ -100,6 +100,7 @@ def install_excepthook(show_dialog: bool = True) -> None:
     import traceback
 
     def _hook(exc_type, exc, tb):
+        """ 全局未捕获异常处理器 """
         logging.critical("Uncaught exception:", exc_info=(exc_type, exc, tb))
         if show_dialog:
             try:

@@ -88,6 +88,7 @@ class SSDetector:
         min_bytes = int(os.getenv("SS_MIN_MODEL_BYTES", "1000000"))  # 默认 1MB 下限
 
         def _size_ok(p: str) -> bool:
+            """ 检查文件是否存在且尺寸合适 """
             try:
                 return Path(p).exists() and Path(p).stat().st_size >= min_bytes
             except Exception:

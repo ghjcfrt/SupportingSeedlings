@@ -22,6 +22,7 @@ def clean_advisor_reply(md: str) -> str:
         dash_name_re = re.compile(r"^\s*[\-–—]\s*.*$")
 
         def _is_name_like(line: str) -> bool:
+            """ 判断一行文本是否像是“姓名占位”或“署名” """
             t = line.strip()
             return bool(
                 name_placeholder_re.match(t)
