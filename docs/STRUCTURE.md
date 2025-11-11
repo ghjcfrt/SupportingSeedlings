@@ -11,12 +11,16 @@
 - `main.py`：统一入口，根据参数路由到 扶苗 GUI/检测 CLI
 - `pyproject.toml`：依赖与工具配置（uv 源、ruff 规则等）
 
-核心目录结构：
+核心目录结构（与当前代码一致）：
 
 ```
 app/
-  kids_gui.py       # PySide6 GUI：打开图片/摄像头识物与播报
-  kids_core.py      # 扶苗核心逻辑与绘制
+  ss_gui.py         # PySide6 GUI：打开图片/摄像头识物与播报
+  ss_core.py        # 扶苗核心逻辑与绘制
+  advisor_dialog.py # 心理助理对话框（讯飞）
+  recommend_dialog.py # 个性化推荐对话框（讯飞）
+  runtime_paths.py  # 本地权重路径优先策略
+  logging_utils.py  # 日志与异常捕获
 
 detection/
   core.py           # YOLOConfig/YOLODetector，摄像头枚举、推理与保存
@@ -28,53 +32,25 @@ voice/
   tts_queue.py      # 播报队列与去重
   announce.py       # 数量播报工具
 
-cor_io/
+ss_io/
   camera_utils.py   # DirectShow 设备名称（pygrabber）
-  device_utils.py   # 设备列表（CUDA/MPS/CPU）
+
+games/
+  arithmetic.py               # 口算对话框（外层包装）
+  pictorial_equation.py       # 图文方程对话框（外层包装）
+  sudoku.py                   # 数独对话框（外层包装）
+  _arithmetic/ , _pictorial_equation/ , _sudoku/  # 内部实现
 
 models/             # 放置模型（例如 yolo11n.pt）
 results/            # 运行输出（帧与 txt）
 docs/STRUCTURE.md   # 本说明
 ```
 
-游戏模块（拆分说明）：
-
-```
-games/
-  __init__.py                 # 导出对外可用对话框类
-  arithmetic.py               # 薄包装（保持向后兼容）
-  pictorial_equation.py       # 薄包装（保持向后兼容）
-  simple_quiz.py              # 薄包装（保持向后兼容）
-  sudoku.py                # 薄包装（保持向后兼容）
-
-  _arithmetic/                # 口算内部实现
-    logic.py                  # 题目生成器（避免重复、范围控制等）
-    ui.py                     # ArithmeticDialog（UI）
-
-  _pictorial_equation/        # 图文方程内部实现
-    logic.py                  # 题目生成器（emoji与等式）
-    ui.py                     # PictorialEquationDialog（UI）
-
-  _simple_quiz/               # 三选一问答内部实现
-    types.py                  # 数据结构 QuizItem
-    generator.py              # 题目生成器 QuizGenerator
-
-  _sudoku/                    # 数独内部实现
-    logic.py                  # 网格生成/挖空/计数/难度配置
-    ui.py                     # SudokuDialog（UI）
-```
-
-对外使用保持不变：
+对外使用：
 - `from games import ArithmeticDialog, PictorialEquationDialog, SudokuDialog`
-- `from games.simple_quiz import QuizItem, QuizGenerator`
-
-这样做的好处：
-- UI 与题目/逻辑解耦，便于单元测试与复用；
-- 代码体量分散到更小文件，降低认知负担；
-- 保持原有导入路径不变，避免影响上层模块。
 
 可运行入口：
-- GUI：`python .\main.py` 或 `python -m app.kids_gui`
+- GUI：`python .\main.py` 或 `python -m app.ss_gui`
 - 检测 CLI：`python .\main.py detect ...` 或 `python -m detection.cli ...`
 
 命令行与环境变量约定：
@@ -107,11 +83,11 @@ games/
 ## 系统方案与核心技术
 
 系统方案：
-- 路由与入口：`main.py` 统一分流到 GUI（`app.kids_gui`）或 CLI（`detection.cli`）。
+- 路由与入口：`main.py` 统一分流到 GUI（`app.ss_gui`）或 CLI（`detection.cli`）。
 - 检测核心：`detection/core.py` 提供 `YOLOConfig` 与 `YOLODetector`，负责设备选择、视频采集、YOLO 推理、绘制保存与 TTS 播报。
-- 图形界面：`app/kids_gui.py` 使用 PySide6；UI 主线程渲染与交互，推理由定时器驱动避免卡顿。
+- 图形界面：`app/ss_gui.py` 使用 PySide6；UI 主线程渲染与交互，推理由定时器驱动避免卡顿。
 - 语音播报：`voice/tts_queue.py` 管理播报队列并去重/去“包含词”；`voice/tts.py` 实现本地 TTS。
-- 设备名称：`cor_io/camera_utils.py` 基于 DirectShow（pygrabber）枚举友好名；未安装时回退到 `Camera n`。
+- 设备名称：`ss_io/camera_utils.py` 基于 DirectShow（pygrabber）枚举友好名；未安装时回退到 `Camera n`。
 
 核心技术：
 - 模型：Ultralytics YOLOv11（默认权重 `models/yolo/yolo11n.pt`）。

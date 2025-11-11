@@ -133,6 +133,44 @@ uv run python -m app.ss_gui
 注意：若未配置凭据，打开“心理助理/个性化推荐”对话框时会提示缺少环境变量，并不会导致整个程序崩溃。
 
 
+## 配置说明（config.json / 环境变量）
+
+项目在两类功能中读取配置：
+- 讯飞 Spark 接入：凭据与请求参数（见 integrations/xfyun_client.py）。
+- 日志与对话字号/行距：GUI 与对话框显示（见 app/ss_gui.py、app/advisor_dialog.py、app/recommend_dialog.py）。
+
+优先级与读取路径：
+- 环境变量优先于文件；
+- 若未设置 XF_* 环境变量，客户端会自动查找当前工作目录或项目根目录下的 `config.json` 并写入环境变量再使用；
+- `LOG_*`、`CHAT_*` 仅从 `config.json` 读取（如需覆盖可直接编辑该文件）。
+
+建议做法：复制根目录的 `config_example.json` 为 `config.json`，按需填写/调整。
+
+支持的配置键一览：
+
+| 键 | 作用 | 示例/默认 |
+|---|---|---|
+| XF_APPID | 讯飞 AppID | your_appid_here |
+| XF_API_KEY | 讯飞 API Key | your_api_key_here |
+| XF_API_SECRET | 讯飞 API Secret | your_api_secret_here |
+| XF_URL | SparkCube WebSocket 地址 | wss://sparkcube-api.xf-yun.com/v1/customize |
+| XF_DOMAIN | 模型域 | max |
+| XF_TEMPERATURE | 采样温度，越大越发散 | 0.95 |
+| XF_TOPK | 采样 top-k | 6 |
+| XF_MAX_TOKENS | 最大输出 token 数 | 4096 |
+| LOG_LEVEL | 全局日志级别（DEBUG/INFO/WARN/ERROR） | INFO |
+| LOG_TO_CONSOLE | 是否输出到控制台 | true |
+| LOG_CONSOLE_LEVEL | 控制台日志级别 | INFO |
+| CHAT_FONT_SIZE | 对话/推荐框字号（px） | 16 |
+| CHAT_LINE_HEIGHT | 对话/推荐框行距 | 1.7 |
+
+额外环境变量：
+- 图形主题：`SS_FORCE_LIGHT=1` 可强制使用浅色主题；
+- 检测 CLI 运行参数可用 `SS_` 前缀覆盖，详见“环境变量覆盖（前缀 SS_）”。
+
+安全提示：请勿将真实的 XF_* 凭据提交到公共仓库。`config.json` 建议仅保留在本地环境。
+
+
 ## 环境变量覆盖（前缀 SS_）
 
 除命令行外，也可用环境变量覆盖默认值（命令行优先）：

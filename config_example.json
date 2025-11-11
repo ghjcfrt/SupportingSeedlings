@@ -1,4 +1,20 @@
 {
+  "__comments": {
+    "XF_APPID": "讯飞 AppID，用于 SparkCube 鉴权。优先级：环境变量 > 此文件（若环境未设置，将自动从本文件写入环境）。",
+    "XF_API_KEY": "讯飞 API Key。",
+    "XF_API_SECRET": "讯飞 API Secret。",
+    "XF_URL": "SparkCube WebSocket 地址，通常无需修改。",
+    "XF_DOMAIN": "Spark 模型域，例如 'max'。",
+    "XF_TEMPERATURE": "采样温度[0.0~1.0]，越大越发散，越小越保守。",
+    "XF_TOPK": "采样 top-k 上限（整数）。",
+    "XF_MAX_TOKENS": "单次回复的最大输出 token 数（整数）。",
+    "LOG_LEVEL": "全局日志级别：DEBUG/INFO/WARN/ERROR。GUI 与 CLI 都会读取（影响写入 logs/ 的文件日志）。",
+    "LOG_TO_CONSOLE": "是否同时输出到控制台（布尔）。开发期建议 true，打包发布通常设为 false。",
+    "LOG_CONSOLE_LEVEL": "控制台输出的日志级别（INFO/DEBUG 等）。",
+    "CHAT_FONT_SIZE": "聊天/推荐窗口的字号（像素，整数）。",
+    "CHAT_LINE_HEIGHT": "聊天/推荐窗口的行距（倍数，浮点）。",
+    "_notes": "将本文件复制为 config.json 后生效；请勿将真实 XF_* 凭据提交到仓库。"
+  },
   "XF_APPID": "your_appid_here",
   "XF_API_KEY": "your_api_key_here",
   "XF_API_SECRET": "your_api_secret_here",
@@ -6,5 +22,10 @@
   "XF_DOMAIN": "max",
   "XF_TEMPERATURE": 0.95,
   "XF_TOPK": 6,
-  "XF_MAX_TOKENS": 4096
+  "XF_MAX_TOKENS": 4096,
+  "LOG_LEVEL": "INFO",
+  "LOG_TO_CONSOLE": true,
+  "LOG_CONSOLE_LEVEL": "INFO",
+  "CHAT_FONT_SIZE": 16,
+  "CHAT_LINE_HEIGHT": 1.7
 }

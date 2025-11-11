@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
@@ -195,7 +196,7 @@ class YOLODetector:
         try:
             configure_local_model_caches()
         except Exception as err:
-            print(f"[警告] 配置本地模型缓存目录失败: {err}")
+            logging.warning("配置本地模型缓存目录失败: %s", err)
 
         # 解析并优先使用 exe 根目录下的模型权重
         resolved = prefer_local_weights(cfg.model_path)
@@ -212,7 +213,7 @@ class YOLODetector:
             if size >= min_bytes:
                 need_download = False
             else:
-                print(f"[信息] 模型文件过小({size}B < {min_bytes}B) 重新下载: {resolved}")
+                logging.info("模型文件过小(%sB < %sB) 重新下载: %s", size, min_bytes, resolved)
         if need_download:
             ensure_weights_file(resolved, alias_name=Path(resolved).name)
 
@@ -225,7 +226,7 @@ class YOLODetector:
                 break
             except Exception as err:  # noqa: BLE001 捕获并重试
                 last_err = err
-                print(f"[警告] YOLO 模型加载失败 (尝试 {attempt+1}/2): {err}")
+                logging.warning("YOLO 模型加载失败 (尝试 %s/2): %s", attempt + 1, err)
                 # 删除可能破损的文件并重新下载
                 try:
                     Path(resolved).unlink(missing_ok=True)
@@ -252,7 +253,7 @@ class YOLODetector:
         fail = getattr(self, "_read_fail_count", 0) + 1
         self._read_fail_count = fail
         if fail >= READ_FAIL_LIMIT:
-            print(f"[错误] 连续 {fail} 次无法读取帧，结束检测")
+            logging.error("连续 %s 次无法读取帧，结束检测", fail)
             return True
         return False
 
@@ -295,7 +296,7 @@ class YOLODetector:
             try:
                 set_level(level_const)
             except (cv2.error, RuntimeError) as err:  # 记录一次即可
-                print(f"[警告] 设置 OpenCV 日志等级失败: {err}")
+                logging.warning("设置 OpenCV 日志等级失败: %s", err)
     # 仅在可用时尝试设置为静默，无需显式返回
 
     def _predict(self, frame) -> tuple[Any, Any]:
@@ -394,13 +395,13 @@ class YOLODetector:
                 fourcc = cv2.VideoWriter.fourcc(*("XVID" if ext == ".avi" else "mp4v"))
                 writer = cv2.VideoWriter(str(out_path), fourcc, fps, (w, h))
                 if not writer.isOpened():
-                    print(f"[警告] 无法打开视频写出器: {out_path}")
+                    logging.warning("无法打开视频写出器: %s", out_path)
                     writer = None
             if writer is not None:
                 try:
                     writer.write(annotated)
                 except Exception as err:
-                    print(f"[警告] 写出视频帧失败: {err}")
+                    logging.warning("写出视频帧失败: %s", err)
             frame_id += 1
             if cv2.waitKey(1) & 0xFF == ord(cfg.exit_key):
                 break
@@ -446,19 +447,19 @@ def _opencv_enum_log_suppressed(*, enable: bool):
                 if callable(get_level):
                     restore_level = get_level()
             except (cv2.error, RuntimeError) as err:
-                print(f"[警告] 读取 OpenCV 日志等级失败: {err}")
+                logging.warning("读取 OpenCV 日志等级失败: %s", err)
                 restore_level = None
             try:
                 set_level(silent_const)
             except (cv2.error, RuntimeError) as err:
-                print(f"[警告] 设置 OpenCV 日志等级失败: {err}")
+                logging.warning("设置 OpenCV 日志等级失败: %s", err)
         yield
     finally:
         if callable(set_level) and restore_level is not None:
             try:
                 set_level(restore_level)
             except (cv2.error, RuntimeError) as err:
-                print(f"[警告] 恢复 OpenCV 日志等级失败: {err}")
+                logging.warning("恢复 OpenCV 日志等级失败: %s", err)
 
 
 def _camera_is_usable(idx: int) -> bool:
@@ -504,7 +505,9 @@ def interactive_select_camera(max_index: int) -> int:
     if not cams:
         msg = "未检测到任何可用摄像头"
         raise RuntimeError(msg)
-    print("可用摄像头: " + ", ".join(str(c) for c in cams))
+    msg = "可用摄像头: " + ", ".join(str(c) for c in cams)
+    print(msg)
+    logging.info(msg)
     while True:
         sel = input("请输入要使用的摄像头索引(回车默认0): ").strip()
         if not sel:
@@ -512,7 +515,7 @@ def interactive_select_camera(max_index: int) -> int:
         if sel.isdigit():
             idx = int(sel)
             if idx in cams:
-                print(f"[信息] 选择摄像头 {idx}")
+                logging.info("选择摄像头 %s", idx)
                 return idx
         print("输入无效，请重新输入")
 
@@ -524,15 +527,18 @@ def main(argv: list[str] | None = None):
         try:
             cfg.source = interactive_select_camera(cfg.max_cam_index)
         except RuntimeError as err:
-            print(f"[错误] 摄像头选择失败: {err}")
+            logging.error("摄像头选择失败: %s", err)
             return
-    print("[配置] 使用参数: ")
+    logging.info("[配置] 使用参数:")
     for k, v in cfg.to_dict().items():
-        print(f"  {k}: {v}")
+        logging.info("  %s: %s", k, v)
     detector = YOLODetector(cfg)
     detector.detect_and_save()
 
 
+# 内部实现模块不对外暴露公共 API；请通过 detection.api 访问稳定接口
+# 空导出可避免 `from detection.core import *` 暴露实现细节
+__all__: list[str] = []
 # 内部实现模块不对外暴露公共 API；请通过 detection.api 访问稳定接口
 # 空导出可避免 `from detection.core import *` 暴露实现细节
 __all__: list[str] = []
