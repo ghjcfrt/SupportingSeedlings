@@ -14,6 +14,8 @@ import cv2
 import torch
 from ultralytics import YOLO  # pyright: ignore[reportPrivateImportUsage]
 
+from app.runtime_paths import (configure_local_model_caches,
+                               ensure_weights_file, prefer_local_weights)
 from voice import Announcer
 
 # 环境变量前缀
@@ -185,7 +187,49 @@ class YOLODetector:
         """初始化检测器"""
         self.cfg = cfg
         self.device = _select_device(cfg.device)
-        self.model: YOLO = YOLO(cfg.model_path)
+        # 配置本地缓存目录（避免写入临时目录）
+        try:
+            configure_local_model_caches()
+        except Exception as err:
+            print(f"[警告] 配置本地模型缓存目录失败: {err}")
+
+        # 解析并优先使用 exe 根目录下的模型权重
+        resolved = prefer_local_weights(cfg.model_path)
+        self.cfg.model_path = resolved
+
+        # 基础完整性检查（文件缺失或过小则重新下载）
+        try:
+            min_bytes = int(os.getenv("SS_MIN_MODEL_BYTES", "1000000"))
+        except ValueError:
+            min_bytes = 1_000_000
+        need_download = True
+        if Path(resolved).is_file():
+            size = Path(resolved).stat().st_size
+            if size >= min_bytes:
+                need_download = False
+            else:
+                print(f"[信息] 模型文件过小({size}B < {min_bytes}B) 重新下载: {resolved}")
+        if need_download:
+            ensure_weights_file(resolved, alias_name=Path(resolved).name)
+
+        # YOLO 构造重试（处理偶发下载/加载破损）
+        last_err: Exception | None = None
+        for attempt in range(2):
+            try:
+                self.model: YOLO = YOLO(resolved)
+                last_err = None
+                break
+            except Exception as err:  # noqa: BLE001 捕获并重试
+                last_err = err
+                print(f"[警告] YOLO 模型加载失败 (尝试 {attempt+1}/2): {err}")
+                # 删除可能破损的文件并重新下载
+                try:
+                    Path(resolved).unlink(missing_ok=True)
+                except Exception:
+                    pass
+                ensure_weights_file(resolved, alias_name=Path(resolved).name)
+        if last_err is not None:
+            raise RuntimeError(f"YOLO 模型加载失败: {last_err}") from last_err
         # FPS 相关状态
         self._last_time = datetime.now(UTC)
         self._fps = 0.0

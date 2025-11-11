@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (QComboBox, QDialog, QHBoxLayout, QLabel,
                                QLineEdit, QPushButton, QTextEdit, QVBoxLayout,
                                QWidget)
 
-from agent import Advisor, ChildProfile, clean_advisor_reply
+from agent import Advisor, SSProfile, clean_advisor_reply
 
 
 def _load_chat_style() -> tuple[int, float]:
@@ -283,7 +283,7 @@ class AdvisorDialog(QDialog):
             except Exception as e:
                 self._insert_line("[系统]", f"无法初始化心理助理：{e}")
                 return
-        prof = ChildProfile(
+        prof = SSProfile(
             age=int(self._age.currentText()),
             mood=self._mood.currentText(),
             interests=[s.strip() for s in self._interests.text().split(',') if s.strip()],

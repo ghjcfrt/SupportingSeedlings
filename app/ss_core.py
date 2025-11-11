@@ -8,22 +8,33 @@
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable
 
 import cv2
 import numpy as np
 
+from detection.coco_labels_cn import coco_labels_cn
+
+from .runtime_paths import (configure_local_model_caches, ensure_weights_file,
+                            prefer_local_weights)
+
+# 在导入 Ultralytics 之前，将缓存与下载目录重定向到本地 models/yolo
 try:
-    # 优先使用公开入口（Ultralytics v8 推荐）
+    configure_local_model_caches()
+except Exception:
+    pass
+
+try:
+    # 优先使用公开入口（Ultralytics v8/11 推荐）
     from ultralytics import YOLO  # type: ignore[attr-defined]
 except ImportError as e:
     YOLO = None
     _YOLO_IMPORT_ERR = e
 else:
     _YOLO_IMPORT_ERR = None
-
-from detection.coco_labels_cn import coco_labels_cn
 
 
 def _select_device(requested: str | None) -> str:
@@ -43,7 +54,7 @@ def _select_device(requested: str | None) -> str:
 
 
 @dataclass
-class ChildConfig:
+class SSConfig:
     """扶苗检测配置"""
     model_path: str = "models/yolo/yolo11n.pt"
     conf: float = 0.6
@@ -60,19 +71,55 @@ class Detection:
     box: tuple[int, int, int, int]  # x1,y1,x2,y2
 
 
-class ChildDetector:
+class SSDetector:
     """面向扶苗教学的简化检测封装"""
 
-    def __init__(self, cfg: ChildConfig | None = None) -> None:
+    def __init__(self, cfg: SSConfig | None = None) -> None:
         """初始化检测器"""
         global _YOLO_IMPORT_ERR
         if YOLO is None:
             raise ImportError(
                 "未安装 ultralytics，请先安装依赖（见 README）"
             ) from _YOLO_IMPORT_ERR
-        self.cfg = cfg or ChildConfig()
+        self.cfg = cfg or SSConfig()
         self.device = _select_device(self.cfg.device)
-        self.model = YOLO(self.cfg.model_path)
+        # 解析并优先使用本地（exe 根目录下）权重，若缺失则自动下载到该目录
+        resolved = prefer_local_weights(self.cfg.model_path)
+        min_bytes = int(os.getenv("SS_MIN_MODEL_BYTES", "1000000"))  # 默认 1MB 下限
+
+        def _size_ok(p: str) -> bool:
+            try:
+                return Path(p).exists() and Path(p).stat().st_size >= min_bytes
+            except Exception:
+                return False
+
+        # 若不存在或太小，先下载
+        if not _size_ok(resolved):
+            ensure_weights_file(resolved, alias_name=Path(resolved).name)
+
+        # 试跑构造，失败则删除并重试一次
+        last_err: Exception | None = None
+        for _ in range(2):  # 最多两次尝试
+            try:
+                # 再次校验尺寸，避免不完整文件
+                if not _size_ok(resolved):
+                    ensure_weights_file(resolved, alias_name=Path(resolved).name)
+                self.cfg.model_path = resolved
+                self.model = YOLO(resolved)
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                # 删除可能的残缺文件后重试下载
+                try:
+                    if Path(resolved).exists():
+                        Path(resolved).unlink(missing_ok=True)
+                except Exception:
+                    pass
+                ensure_weights_file(resolved, alias_name=Path(resolved).name)
+        if last_err is not None:
+            # 最终仍失败，抛出原错误
+            raise last_err
 
     # -------- 检测与结果整理 --------
     def detect_frame(self, frame: np.ndarray) -> tuple[list[Detection], np.ndarray]:
@@ -146,4 +193,9 @@ class ChildDetector:
     ) -> np.ndarray:
         """直接返回 YOLO 已绘制的图像，不再叠加任何自定义框或中文文本"""
         return frame
+
+
+
+
+
 

@@ -13,15 +13,17 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import pathlib
 import sys
 import time
-from typing import Optional
+from pathlib import Path
+from typing import Optional, cast
 
 import cv2
 import numpy as np
-from PySide6.QtCore import QEvent, Qt, QTimer
+from PySide6.QtCore import QEvent, QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel,
@@ -35,7 +37,8 @@ from voice.tts_queue import TTSManager
 
 from .logging_utils import (install_excepthook, install_qt_message_logging,
                             setup_logging, suppress_libpng_iccp_warning)
-from .ss_core import ChildConfig, ChildDetector
+from .runtime_paths import prefer_local_weights
+from .ss_core import SSConfig, SSDetector
 
 
 def _bgr_to_qpix(img_bgr: np.ndarray) -> QPixmap:
@@ -62,13 +65,17 @@ class KidsWindow(QWidget):
         # 初始宽高比在 UI 初始化后设定
 
         # 检测器：固定图片尺寸为 640 以确保实时性
-        model_path = str(pathlib.Path(__file__).resolve().parents[1] / "models" / "yolo" / "yolo11n.pt")
-        self._cfg = ChildConfig(model_path=model_path, conf=0.6, img_size=[640, 640], device="auto")
-        try:
-            self._det = ChildDetector(self._cfg)
-        except Exception as e:
-            QMessageBox.critical(self, "模型加载失败", f"请检查模型文件是否存在：\n{model_path}\n\n错误：{e}")
-            raise
+        # 模型路径：优先从可执行文件所在目录的 models/yolo 读取
+        model_path = "models/yolo/yolo11n.pt"
+        self._cfg = SSConfig(
+            model_path=prefer_local_weights(model_path),
+            conf=0.6,
+            img_size=[640, 640],
+            device="auto",
+        )
+        # 延后在事件循环启动后初始化检测器，避免阻塞 UI
+        self._det: Optional[SSDetector] = None
+        self._model_msg_box: QMessageBox | None = None
 
         # 摄像头 / 本地视频
         self._cap: Optional[cv2.VideoCapture] = None
@@ -91,7 +98,7 @@ class KidsWindow(QWidget):
         self._intro_btn_guard.setInterval(120)
         self._intro_btn_guard.timeout.connect(self._poll_intro_busy)
 
-        # UI
+    # UI
         self._build_ui()
         self._refresh_cameras()
         # 构建完成后，根据当前主题（调色板）应用一次自适应样式
@@ -103,6 +110,220 @@ class KidsWindow(QWidget):
             self._aspect_ratio = w / h
         except Exception:
             self._aspect_ratio = 16 / 9
+
+        # 在 UI 可见后异步准备模型与检测器
+        try:
+            # 相关操作较重，初始化期间禁用依赖检测的按钮
+            with contextlib.suppress(Exception):
+                self._btn_recognize.setEnabled(False)
+            with contextlib.suppress(Exception):
+                self._btn_cam_start.setEnabled(False)
+            # 初始化运行状态与重试计时器
+            self._init_running: bool = False
+            self._prepare_checks_left: int = 10
+            self._prepare_check_timer: QTimer | None = None
+            QTimer.singleShot(0, self._start_detector_init)
+        except Exception:
+            pass
+
+    # ---------- 异步初始化检测器 ----------
+    class _InitWorker(QObject):
+        finished = Signal(object, object)  # (det or None, error or None)
+
+        def run(self, cfg: SSConfig):  # type: ignore[override]
+            det = None
+            err = None
+            try:
+                det = SSDetector(cfg)
+            except Exception as e:  # noqa: BLE001
+                err = e
+            self.finished.emit(det, err)
+
+    def _start_detector_init(self) -> None:
+        abs_model = Path(self._cfg.model_path)
+        show_threshold = 1_000_000  # 约 1MB 下限
+        if (not abs_model.exists()) or abs_model.stat().st_size < show_threshold:
+            self._model_msg_box = QMessageBox(self)
+            self._model_msg_box.setWindowTitle("正在准备模型")
+            self._model_msg_box.setText("正在下载或加载 YOLO 模型，请稍候…\n首次运行可能需要一点时间。")
+            self._model_msg_box.setIcon(QMessageBox.Icon.Information)
+            self._model_msg_box.setStandardButtons(QMessageBox.StandardButton.NoButton)
+            self._model_msg_box.show()
+            QApplication.processEvents()
+        # 启动一次初始化工作
+        self._start_init_worker()
+        # 启动“准备状态”轮询与重试（改为单次定时自调度，避免某些环境下重复 QTimer 未触发问题）
+        self._prepare_checks_left = 10
+        self._prepare_polling = True
+        # 可视化告知轮询已启动
+        try:
+            if self._model_msg_box is not None:
+                self._model_msg_box.setText(
+                    "正在下载或加载 YOLO 模型，请稍候…\n首次运行可能需要一点时间。\n(每 5 秒检查，剩余 %d 次)" % self._prepare_checks_left
+                )
+            if hasattr(self, "_status") and self._status is not None:
+                self._status.showMessage(f"正在准备模型… 每5秒检查，剩余 {self._prepare_checks_left} 次", 3000)
+            logging.debug("[prepare] poll start, remaining=%d", self._prepare_checks_left)
+        except Exception:
+            pass
+        # 立即执行一次首次检查（10ms 后），后续由函数内部再约 5 秒自调度
+        QTimer.singleShot(10, self._on_prepare_check)
+
+    def _start_init_worker(self) -> None:
+        """启动一次检测器初始化的后台任务（若未在运行）"""
+        if getattr(self, "_init_running", False):
+            return
+        # 使用工作线程构建检测器，避免阻塞 UI 线程
+        self._init_thread = QThread(self)  # type: ignore[attr-defined]
+        self._init_worker = KidsWindow._InitWorker()  # type: ignore[attr-defined]
+        self._init_worker.moveToThread(self._init_thread)
+        self._init_thread.started.connect(lambda: self._init_worker.run(self._cfg))
+        self._init_worker.finished.connect(self._on_detector_inited)
+        self._init_worker.finished.connect(self._init_thread.quit)
+        self._init_thread.finished.connect(self._init_worker.deleteLater)
+        self._init_thread.finished.connect(self._init_thread.deleteLater)
+        self._init_running = True
+        self._init_thread.start()
+
+    def _dismiss_model_box(self, reason: str = "") -> None:
+        """安全关闭并销毁模型准备提示框，避免某些平台 close() 不生效残留。
+
+        参数:
+            reason: 打点日志原因描述，便于调试。"""
+        box = getattr(self, "_model_msg_box", None)
+        if box is None:
+            return
+        try:
+            # 依次尝试多种方式，最大化关闭成功率
+            box.done(0)
+        except Exception:
+            pass
+        try:
+            box.close()
+        except Exception:
+            pass
+        try:
+            box.hide()
+        except Exception:
+            pass
+        try:
+            box.deleteLater()
+        except Exception:
+            pass
+        self._model_msg_box = None
+        # 立即处理一次事件队列，帮助窗口实际消失
+        try:
+            QApplication.processEvents()
+        except Exception:
+            pass
+        if reason:
+            logging.debug("[prepare] model box dismissed: %s", reason)
+
+    def _on_prepare_check(self) -> None:
+        """每 5 秒检查一次是否已准备好；如未就绪尝试重启初始化；超过 10 次则退出程序。"""
+        # 在显示前先递减剩余次数（首次触发后从 N->N-1）
+        try:
+            if getattr(self, "_det", None) is None:  # 仅在未完成时递减
+                self._prepare_checks_left -= 1
+        except Exception:
+            self._prepare_checks_left = 0
+        # 打点日志，便于确认轮询是否执行
+        try:
+            from datetime import datetime
+            abs_model = Path(self._cfg.model_path)
+            size = abs_model.stat().st_size if abs_model.exists() else 0
+            logging.debug(
+                "[prepare] %s tick: left=%s init_running=%s file=%s size=%s",
+                datetime.now().isoformat(timespec='seconds'),
+                getattr(self, "_prepare_checks_left", -1),
+                getattr(self, "_init_running", False),
+                abs_model.exists(),
+                size,
+            )
+            # 若文件已完整，先行关闭提示框，避免“下载完成但对话框未关”的视觉滞留
+            try:
+                min_bytes = int(os.getenv("SS_MIN_MODEL_BYTES", "1000000"))
+            except Exception:
+                min_bytes = 1_000_000
+            if abs_model.exists() and size >= min_bytes and self._model_msg_box:
+                self._dismiss_model_box("file ready (size >= min)")
+        except Exception:
+            pass
+        # 同步更新提示文案中的剩余次数
+        try:
+            if self._model_msg_box is not None and self._model_msg_box.isVisible():
+                self._model_msg_box.setText(
+                    "正在下载或加载 YOLO 模型，请稍候…\n首次运行可能需要一点时间。\n(每 5 秒检查，剩余 %d 次)" % max(getattr(self, "_prepare_checks_left", 0), 0)
+                )
+        except Exception:
+            pass
+        # 已就绪：停止轮询并关闭提示
+        if getattr(self, "_det", None) is not None:
+            logging.debug("[prepare] ready branch (_det is not None), stopping poll")
+            self._dismiss_model_box("detector ready")
+            self._prepare_polling = False
+            return
+        # 如果文件已经下载完成但 _det 仍为空，尝试主线程直接构造一次（规避线程偶发卡住）
+        try:
+            abs_model = Path(self._cfg.model_path)
+            min_bytes = int(os.getenv("SS_MIN_MODEL_BYTES", "1000000"))
+            if abs_model.exists() and abs_model.stat().st_size >= min_bytes:
+                # 主线程快速尝试构造；失败则继续原重试逻辑
+                from .ss_core import SSDetector as _InlineDet  # 延迟导入避免循环
+                try:
+                    det_inline = _InlineDet(self._cfg)
+                except Exception:
+                    det_inline = None
+                else:
+                    self._det = det_inline
+                    self._dismiss_model_box("inline construct succeeded")
+                    with contextlib.suppress(Exception):
+                        self._btn_recognize.setEnabled(True)
+                    with contextlib.suppress(Exception):
+                        self._btn_cam_start.setEnabled(True)
+                    self._prepare_polling = False
+                    logging.debug("[prepare] inline construct succeeded; dialog closed; poll stopped")
+                    return
+        except Exception:
+            pass
+        # 未就绪：剩余重试次数检查
+        if self._prepare_checks_left <= 0:
+            # 超过重试次数：提示并退出
+            self._dismiss_model_box("timeout")
+            QMessageBox.critical(self, "超时退出", "模型长时间未准备就绪，程序将自动退出。\n请检查网络或稍后重试。")
+            app = QApplication.instance()
+            if app is not None:
+                QTimer.singleShot(0, app.quit)
+            return
+        # 若未在初始化中，尝试重启一次初始化
+        if not getattr(self, "_init_running", False):
+            logging.debug("[prepare] restarting init worker")
+            self._start_init_worker()
+        # 安排下一次检查（5 秒后）
+        if getattr(self, "_prepare_polling", True):
+            logging.debug("[prepare] scheduling next check in 5s, remaining=%d", self._prepare_checks_left)
+            QTimer.singleShot(5000, self._on_prepare_check)
+
+    def _on_detector_inited(self, det: Optional[SSDetector], err: Optional[Exception]) -> None:
+        # 关闭提示
+        self._dismiss_model_box("worker finished")
+        # 标记当前初始化周期结束
+        self._init_running = False
+        if err is not None or det is None:
+            # 若仍有重试机会，保持静默，由定时器负责重启；否则显示错误（防护，通常走不到此分支）
+            if getattr(self, "_prepare_checks_left", 0) > 0:
+                return
+            abs_model = Path(self._cfg.model_path)
+            QMessageBox.critical(self, "模型加载失败", f"请检查网络或手动放置模型文件：\n{abs_model}\n\n错误：{err}")
+            return
+        # 成功：设置检测器并启用按钮
+        self._det = det
+        with contextlib.suppress(Exception):
+            self._btn_recognize.setEnabled(True)
+        with contextlib.suppress(Exception):
+            self._btn_cam_start.setEnabled(True)
+        # 成功后停止轮询（自调度无需显式停止）
+        self._prepare_polling = False
 
     def _safe_speak(self, text: str) -> None:
         """安全地调用 TTS，避免异常导致界面崩溃。"""
@@ -170,14 +391,14 @@ class KidsWindow(QWidget):
             self._orig_style_speak = None
             self._orig_style_intro = None
 
+        # 摄像头布局元素放入网格
         grid.addWidget(QLabel("摄像头:"), 0, 0)
         grid.addWidget(self._cam_combo, 0, 1)
         grid.addWidget(self._btn_cam_refresh, 0, 2)
         grid.addWidget(self._btn_cam_start, 1, 1)
         grid.addWidget(self._btn_cam_stop, 1, 2)
 
-        row.addWidget(pic_group, 1)
-        row.addWidget(cam_group, 2)
+        # 播报设置区块
         announce_group = QGroupBox("播报设置")
         announce_group.setObjectName("announceGroup")
         announce_col = QVBoxLayout(announce_group)
@@ -201,6 +422,10 @@ class KidsWindow(QWidget):
         announce_col.addLayout(row_intro)
         announce_col.addWidget(self._btn_speak_intro)
         announce_col.addStretch(1)
+
+        # 将分组加入行布局
+        row.addWidget(pic_group, 1)
+        row.addWidget(cam_group, 2)
         row.addWidget(announce_group, 1)
 
         # 扶苗助手分组：小游戏 / 心理助理 / 个性化推荐
@@ -518,12 +743,16 @@ class KidsWindow(QWidget):
         if img is None:
             QMessageBox.information(self, "提示", "请先打开一张图片")
             return
-        dets, plotted = self._det.detect_frame(img)
+        if getattr(self, "_det", None) is None:
+            QMessageBox.information(self, "提示", "模型正在准备，请稍候")
+            return
+        det = cast(SSDetector, self._det)
+        dets, plotted = det.detect_frame(img)
         # 选择中心并高亮
-        idx = self._det.pick_center_object(dets, plotted.shape)
+        idx = det.pick_center_object(dets, plotted.shape)
         self._last_dets = dets
         self._last_center_idx = idx
-        annotated = self._det.annotate_with_center(plotted, dets, idx)
+        annotated = det.annotate_with_center(plotted, dets, idx)
         self._preview.setPixmap(
             _bgr_to_qpix(annotated).scaled(
                 self._preview.width(),
@@ -550,6 +779,9 @@ class KidsWindow(QWidget):
 
     def _on_cam_start(self) -> None:
         """启动摄像头识物"""
+        if getattr(self, "_det", None) is None:
+            QMessageBox.information(self, "提示", "模型正在准备，请稍候")
+            return
         if self._cap is not None:
             return
         idx = self._cam_combo.currentData()
@@ -622,11 +854,15 @@ class KidsWindow(QWidget):
                 self._status.showMessage("视频播放结束")
             return
         # 推理
-        dets, plotted = self._det.detect_frame(frame)
-        idx = self._det.pick_center_object(dets, plotted.shape)
+        det_opt = getattr(self, "_det", None)
+        if det_opt is None:
+            return
+        det = cast(SSDetector, det_opt)
+        dets, plotted = det.detect_frame(frame)
+        idx = det.pick_center_object(dets, plotted.shape)
         self._last_dets = dets
         self._last_center_idx = idx
-        annotated = self._det.annotate_with_center(plotted, dets, idx)
+        annotated = det.annotate_with_center(plotted, dets, idx)
         self._preview.setPixmap(
             _bgr_to_qpix(annotated).scaled(
                 self._preview.width(),

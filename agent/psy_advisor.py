@@ -8,7 +8,7 @@ from integrations import SparkClient, SparkConfig
 
 
 @dataclass
-class ChildProfile:
+class SSProfile:
     """ 儿童画像 """
     age: int = 5
     mood: str = "愉快"
@@ -40,7 +40,7 @@ class Advisor:
         self.client: SparkClient = SparkClient(cfg)
 
     @staticmethod
-    def _default_system(profile: Optional[ChildProfile]) -> str:
+    def _default_system(profile: Optional[SSProfile]) -> str:
         """ 默认系统提示词 """
         meta = ""
         if profile is not None:
@@ -51,7 +51,7 @@ class Advisor:
             + ("\n已知画像：" + meta if meta else "")
         )
 
-    def start_session(self, profile: Optional[ChildProfile] = None) -> ChatSession:
+    def start_session(self, profile: Optional[SSProfile] = None) -> ChatSession:
         """ 开始新会话 """
         return ChatSession(self._default_system(profile))
 
@@ -64,7 +64,7 @@ class Advisor:
         return reply
 
 
-def analyze_profile(profile: ChildProfile, question: str) -> str:
+def analyze_profile(profile: SSProfile, question: str) -> str:
     """一次性问答：根据画像给出建议文本（非 JSON）"""
     adv = Advisor()
     sess = adv.start_session(profile)

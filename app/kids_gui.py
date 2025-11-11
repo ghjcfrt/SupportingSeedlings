@@ -34,7 +34,7 @@ from voice.tts_queue import TTSManager
 
 from .logging_utils import (install_excepthook, install_qt_message_logging,
                             setup_logging, suppress_libpng_iccp_warning)
-from .ss_core import ChildConfig, ChildDetector
+from .ss_core import SSConfig, SSDetector
 
 
 def _bgr_to_qpix(img_bgr: np.ndarray) -> QPixmap:
@@ -57,9 +57,9 @@ class KidsWindow(QWidget):
 
         # 检测器：固定图片尺寸为 640 以确保实时性
         model_path = str(pathlib.Path(__file__).resolve().parents[1] / "models" / "yolo" / "yolo11n.pt")
-        self._cfg = ChildConfig(model_path=model_path, conf=0.6, img_size=[640, 640], device="auto")
+        self._cfg = SSConfig(model_path=model_path, conf=0.6, img_size=[640, 640], device="auto")
         try:
-            self._det = ChildDetector(self._cfg)
+            self._det = SSDetector(self._cfg)
         except Exception as e:
             QMessageBox.critical(self, "模型加载失败", f"请检查模型文件是否存在：\n{model_path}\n\n错误：{e}")
             raise
