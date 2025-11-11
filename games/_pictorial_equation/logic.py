@@ -24,6 +24,7 @@ class PictorialEquationGenerator:
             s1 = a1 * x + a2 * y
             s2 = x + y
             break
-        eq_text = f"{e1}*{a1} + {e2}*{a2} = {s1}\n{e1} + {e2} = {s2}"
+        # 展示时使用乘号“×”而不是编程符号“*”以更贴近手写算式风格
+        eq_text = f"{e1}×{a1} + {e2}×{a2} = {s1}\n{e1} + {e2} = {s2}"
         return e1, e2, (x, y), eq_text
 
