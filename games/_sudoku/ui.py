@@ -157,11 +157,13 @@ class SudokuDialog(QDialog):
         """ 初始化对话框。"""
         super().__init__(parent)
         self.setWindowTitle("数独（9×9）")
-        self.setMinimumSize(520, 640)
-        self._maintain_aspect = False
+        self.setMinimumSize(575, 653)
+        # 启用窗口缩放保持当前宽高比
+        self._maintain_aspect = True
         self._adaptive_grid = True
-        self._show_size_info = False
+        self._show_size_info = True
         self._in_aspect_resize = False
+
         self._givens: List[List[bool]] = []
         self._build_ui()
         self._load_puzzle(self._new_random_puzzle())
@@ -177,6 +179,7 @@ class SudokuDialog(QDialog):
         root.setSpacing(8)
 
         gb = QGroupBox("填入 1-9，使每行、每列、每个 3×3 宫内不重复")
+        # 初始样式，颜色后续根据背景亮度自适应覆盖
         gb.setStyleSheet(
             """
         QGroupBox { color: white; font-weight: 600; }
@@ -280,6 +283,58 @@ class SudokuDialog(QDialog):
         root.addWidget(self._custom_box, 0, Qt.AlignmentFlag.AlignLeft)
 
         self._difficulty.currentTextChanged.connect(self._on_difficulty_changed)
+        # 构建完成后应用一次自适应标题颜色
+        self._apply_dynamic_title_color()
+
+    def _apply_dynamic_title_color(self) -> None:
+        """根据窗口背景亮度自适应设置标题文字颜色。
+
+        逻辑：计算窗口调色板 window 颜色的相对亮度 (0-255 范围近似)，
+        若亮度较高（浅色背景）使用深色文字；否则使用白色文字。
+        """
+        gb = getattr(self, "_gb", None)
+        if gb is None:
+            return
+        try:
+            bg = self.palette().window().color()
+            r, g, b = bg.red(), bg.green(), bg.blue()
+            # 使用简单加权亮度（与 sRGB 近似）
+            luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+            is_light = luminance > 180
+            title_color = "#111111" if is_light else "#FFFFFF"
+            border_color = "#BBBBBB" if is_light else "#666666"
+            # 轻微向下偏移标题，使文字的垂直中点更贴近顶边横线
+            title_offset = 5 if is_light else 5
+            # 将标题背景设置为窗口背景色，使标题覆盖边框横线
+            bg_hex = f"#{r:02X}{g:02X}{b:02X}"
+            gb.setStyleSheet(
+                f"""
+            QGroupBox {{
+                color: {title_color};
+                font-weight: 600;
+                border: 1px solid {border_color};
+                border-radius: 8px;
+                margin-top: 14px; /* 为标题预留空间，使其与边框叠放 */
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: {title_offset}px 8px 0 8px; /* 微调向下 */
+                background-color: {bg_hex}; /* 让标题遮住边框横线，实现“覆盖”效果 */
+            }}
+            """
+            )
+        except Exception:
+            pass
+
+    def changeEvent(self, e):  # noqa: D401 - Qt 事件
+        """处理 Qt 颜色 / 主题变化，重新应用标题颜色。"""
+        super().changeEvent(e)
+        try:
+            if e.type() == QEvent.Type.PaletteChange:
+                self._apply_dynamic_title_color()
+        except Exception:
+            pass
 
     def _load_puzzle(self, s: str) -> None:
         """ 加载数独盘面字符串到表格。"""

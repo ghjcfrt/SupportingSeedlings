@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import QObject, QThread, QTimer, Signal, Slot
-from PySide6.QtGui import QFont, QTextBlockFormat, QTextCharFormat, QTextCursor
+from PySide6.QtGui import (QColor, QFont, QPalette, QTextBlockFormat,
+                           QTextCharFormat, QTextCursor)
 from PySide6.QtWidgets import (QComboBox, QDialog, QHBoxLayout, QLabel,
                                QLineEdit, QPushButton, QTextEdit, QVBoxLayout,
                                QWidget)
@@ -99,13 +100,35 @@ class AdvisorDialog(QDialog):
         for m in ["愉快", "焦虑", "易怒", "低落", "兴奋"]:
             self._mood.addItem(m)
         form.addWidget(self._mood)
+        # 通过在行尾添加伸缩项保证整行控件靠左对齐
+        form.addStretch(1)
         root.addLayout(form)
 
         self._interests = QLineEdit()
         self._interests.setPlaceholderText("兴趣（逗号分隔）：动物, 车辆, 音乐, 自然…")
+        # 自适应主题的占位文字颜色（亮色更深，暗色更浅）
+        try:
+            pal = self._interests.palette()
+            base_col = pal.color(QPalette.ColorRole.Base)
+            is_light_bg = base_col.lightnessF() > 0.5
+            ph_color = QColor("#666666") if is_light_bg else QColor("#B0B0B0")
+            pal.setColor(QPalette.ColorRole.PlaceholderText, ph_color)
+            self._interests.setPalette(pal)
+        except Exception:
+            pass
         root.addWidget(self._interests)
         self._notes = QTextEdit()
         self._notes.setPlaceholderText("补充说明（可选）")
+        # QTextEdit 的占位文字配色
+        try:
+            pal2 = self._notes.palette()
+            base_col2 = pal2.color(QPalette.ColorRole.Base)
+            is_light_bg2 = base_col2.lightnessF() > 0.5
+            ph_color2 = QColor("#666666") if is_light_bg2 else QColor("#B0B0B0")
+            pal2.setColor(QPalette.ColorRole.PlaceholderText, ph_color2)
+            self._notes.setPalette(pal2)
+        except Exception:
+            pass
         root.addWidget(self._notes)
 
         ctrl = QHBoxLayout()
@@ -138,6 +161,16 @@ class AdvisorDialog(QDialog):
         in_row = QHBoxLayout()
         self._inp = QLineEdit()
         self._inp.setPlaceholderText("输入你的问题，例如：孩子最近睡前总是抗拒怎么办？")
+        # 发送输入框的占位文字配色
+        try:
+            pal3 = self._inp.palette()
+            base_col3 = pal3.color(QPalette.ColorRole.Base)
+            is_light_bg3 = base_col3.lightnessF() > 0.5
+            ph_color3 = QColor("#666666") if is_light_bg3 else QColor("#B0B0B0")
+            pal3.setColor(QPalette.ColorRole.PlaceholderText, ph_color3)
+            self._inp.setPalette(pal3)
+        except Exception:
+            pass
         self._send = QPushButton("发送")
         self._send.clicked.connect(self._on_send)
         self._btn_cancel = QPushButton("取消")
@@ -432,6 +465,21 @@ class AdvisorDialog(QDialog):
         """ 当前请求超时 """
         self._disconnect_ask_signals()
         self._send.setEnabled(True)
+        self._inp.setEnabled(True)
+        self._btn_cancel.setEnabled(False)
+        self._insert_line("[系统]", "等待超时，请稍后重试或检查网络配置。")
+        if self._ask_thread:
+            with contextlib.suppress(Exception):
+                self._ask_thread.quit()
+            self._ask_thread = None
+        self._send.setEnabled(True)
+        self._inp.setEnabled(True)
+        self._btn_cancel.setEnabled(False)
+        self._insert_line("[系统]", "等待超时，请稍后重试或检查网络配置。")
+        if self._ask_thread:
+            with contextlib.suppress(Exception):
+                self._ask_thread.quit()
+            self._ask_thread = None
         self._inp.setEnabled(True)
         self._btn_cancel.setEnabled(False)
         self._insert_line("[系统]", "等待超时，请稍后重试或检查网络配置。")

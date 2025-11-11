@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import List, Optional
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal, Slot
-from PySide6.QtGui import QFont, QTextBlockFormat, QTextCharFormat, QTextCursor
+from PySide6.QtGui import (QColor, QFont, QPalette, QTextBlockFormat,
+                           QTextCharFormat, QTextCursor)
 from PySide6.QtWidgets import (QComboBox, QDialog, QHBoxLayout, QLabel,
                                QLineEdit, QPushButton, QTextEdit, QVBoxLayout,
                                QWidget)
@@ -97,10 +98,23 @@ class RecommendDialog(QDialog):
         for lv in ["启蒙", "进阶", "挑战"]:
             self._level.addItem(lv)
         form.addWidget(self._level)
+        # 通过在行尾添加伸缩项保证整行控件靠左对齐
+        form.addStretch(1)
         root.addLayout(form)
 
         self._interests = QLineEdit()
         self._interests.setPlaceholderText("兴趣标签（逗号分隔）：动物, 车辆, 音乐, 自然, 数字, 颜色 …")
+        # 调整占位文字在亮/暗主题下的可读性（Qt6 支持 QPalette.PlaceholderText）
+        try:
+            pal = self._interests.palette()
+            base_col = pal.color(QPalette.ColorRole.Base)
+            # 根据背景明度选择占位文字颜色
+            is_light_bg = base_col.lightnessF() > 0.5
+            ph_color = QColor("#666666") if is_light_bg else QColor("#B0B0B0")
+            pal.setColor(QPalette.ColorRole.PlaceholderText, ph_color)
+            self._interests.setPalette(pal)
+        except Exception:
+            pass
         root.addWidget(self._interests)
 
         if self._recent:

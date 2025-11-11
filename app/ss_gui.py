@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import pathlib
 import sys
 import time
@@ -20,12 +21,12 @@ from typing import Optional
 
 import cv2
 import numpy as np
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtCore import QEvent, Qt, QTimer
+from PySide6.QtGui import QColor, QImage, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog,
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-                               QMessageBox, QPushButton, QStatusBar,
-                               QVBoxLayout, QWidget)
+                               QMessageBox, QProxyStyle, QPushButton,
+                               QStatusBar, QStyle, QVBoxLayout, QWidget)
 
 from detection.coco_intros_cn import get_intro_by_id
 from detection.core import enumerate_cameras
@@ -53,7 +54,12 @@ class KidsWindow(QWidget):
         """扶苗主窗口"""
         super().__init__()
         self.setWindowTitle("扶苗")
-        self.resize(730, 510)
+        self.resize(780, 610)
+
+        # 维持窗口等比缩放（保持当前宽高比）
+        self._maintain_aspect: bool = True
+        self._in_aspect_resize: bool = False
+        # 初始宽高比在 UI 初始化后设定
 
         # 检测器：固定图片尺寸为 640 以确保实时性
         model_path = str(pathlib.Path(__file__).resolve().parents[1] / "models" / "yolo" / "yolo11n.pt")
@@ -88,6 +94,15 @@ class KidsWindow(QWidget):
         # UI
         self._build_ui()
         self._refresh_cameras()
+        # 构建完成后，根据当前主题（调色板）应用一次自适应样式
+        self._apply_theme_adaptive_styles()
+        # 记录当前窗口宽高比（避免除零）
+        try:
+            w = max(1, int(self.width()))
+            h = max(1, int(self.height()))
+            self._aspect_ratio = w / h
+        except Exception:
+            self._aspect_ratio = 16 / 9
 
     def _safe_speak(self, text: str) -> None:
         """安全地调用 TTS，避免异常导致界面崩溃。"""
@@ -109,7 +124,7 @@ class KidsWindow(QWidget):
         # 预览区
         self._preview = QLabel("在这里显示识别结果")
         self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview.setStyleSheet("QLabel { background: #202020; color: #C0C0C0; font-size: 16px; }")
+        self._preview.setStyleSheet("QLabel { background: #202020; color: #C0C0C0; font-size: 16px; font-weight: 600; }")
         self._preview.setMinimumHeight(420)
         root.addWidget(self._preview, 1)
 
@@ -122,11 +137,13 @@ class KidsWindow(QWidget):
         self._btn_recognize.setMinimumHeight(40)
         self._btn_recognize.clicked.connect(self._on_recognize_image)
         pic_group = QGroupBox("图片、视频识物")
+        pic_group.setObjectName("picGroup")
         pic_vbox = QVBoxLayout(pic_group)
         pic_vbox.addWidget(self._btn_open)
         pic_vbox.addWidget(self._btn_recognize)
 
         cam_group = QGroupBox("摄像头识物")
+        cam_group.setObjectName("camGroup")
         grid = QGridLayout(cam_group)
         self._cam_combo = QComboBox()
         self._btn_cam_refresh = QPushButton("刷新")
@@ -136,12 +153,22 @@ class KidsWindow(QWidget):
         self._btn_cam_stop = QPushButton("停止")
         self._btn_cam_stop.clicked.connect(self._on_cam_stop)
         self._auto_speak_chk = QCheckBox("自动播报中心物体")
+        self._auto_speak_chk.setObjectName("autoSpeakChk")
         self._auto_speak_chk.setChecked(True)
         # 介绍播报控件
         self._auto_intro_chk = QCheckBox("自动播报介绍")
+        self._auto_intro_chk.setObjectName("autoIntroChk")
         self._auto_intro_chk.setChecked(False)
         self._btn_speak_intro = QPushButton("播报介绍")
         self._btn_speak_intro.clicked.connect(self._on_speak_intro)
+
+        # 记录原始样式，便于在暗色模式恢复
+        try:
+            self._orig_style_speak = self._auto_speak_chk.style()
+            self._orig_style_intro = self._auto_intro_chk.style()
+        except Exception:
+            self._orig_style_speak = None
+            self._orig_style_intro = None
 
         grid.addWidget(QLabel("摄像头:"), 0, 0)
         grid.addWidget(self._cam_combo, 0, 1)
@@ -152,17 +179,33 @@ class KidsWindow(QWidget):
         row.addWidget(pic_group, 1)
         row.addWidget(cam_group, 2)
         announce_group = QGroupBox("播报设置")
+        announce_group.setObjectName("announceGroup")
         announce_col = QVBoxLayout(announce_group)
         announce_col.setContentsMargins(8, 8, 8, 8)
         announce_col.setSpacing(8)
-        announce_col.addWidget(self._auto_speak_chk)
-        announce_col.addWidget(self._auto_intro_chk)
+        # 为两个勾选框左侧添加 5px 空白
+        row_speak = QHBoxLayout()
+        row_speak.setContentsMargins(0, 0, 0, 0)
+        row_speak.setSpacing(0)
+        row_speak.addSpacing(5)
+        row_speak.addWidget(self._auto_speak_chk)
+        row_speak.addStretch(1)
+        announce_col.addLayout(row_speak)
+
+        row_intro = QHBoxLayout()
+        row_intro.setContentsMargins(0, 0, 0, 0)
+        row_intro.setSpacing(0)
+        row_intro.addSpacing(5)
+        row_intro.addWidget(self._auto_intro_chk)
+        row_intro.addStretch(1)
+        announce_col.addLayout(row_intro)
         announce_col.addWidget(self._btn_speak_intro)
         announce_col.addStretch(1)
         row.addWidget(announce_group, 1)
 
         # 扶苗助手分组：小游戏 / 心理助理 / 个性化推荐
         helper_group = QGroupBox("扶苗助手")
+        helper_group.setObjectName("helperGroup")
         helper_col = QVBoxLayout(helper_group)
         self._btn_game = QPushButton("潜能开发小游戏")
         self._btn_game.clicked.connect(self._open_game_dialog)
@@ -175,6 +218,161 @@ class KidsWindow(QWidget):
         helper_col.addWidget(self._btn_reco)
         row.addWidget(helper_group, 1)
         root.addLayout(row)
+
+    # ---------- 主题自适应样式 ----------
+    class _OutlineCheckBoxStyle(QProxyStyle):
+        """为 QCheckBox 指示器添加细黑色描边，保留原生勾选绘制。"""
+        def __init__(self, base=None, border_color: QColor | None = None, light_only: bool = True):
+            super().__init__(base)
+            self._border_color = border_color or QColor(0, 0, 0)
+            self._light_only = bool(light_only)
+
+        def drawPrimitive(self, element, option, painter, widget=None):
+            # 先按原样绘制（包含勾选图标）
+            super().drawPrimitive(element, option, painter, widget)
+            if element == QStyle.PrimitiveElement.PE_IndicatorCheckBox and widget is not None:
+                try:
+                    pal = widget.palette()
+                    bg = pal.window().color()
+                    r, g, b = bg.red(), bg.green(), bg.blue()
+                    luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                    if (not self._light_only) or (luminance > 180):
+                        painter.save()
+                        pen = QPen(self._border_color)
+                        pen.setWidth(1)
+                        painter.setPen(pen)
+                        # 稍微内缩 0.5~1px，避免覆盖系统绘制的外沿
+                        rect = option.rect.adjusted(0, 0, -1, -1)
+                        painter.drawRect(rect)
+                        painter.restore()
+                except Exception:
+                    pass
+    def _apply_theme_adaptive_styles(self) -> None:
+        """根据窗口调色板亮度，为亮色/暗色主题应用不同样式。
+
+        - 亮色：
+          * 复选框指示器添加黑色描边，背景白，选中时以主题色填充
+          * 预览区域背景浅色、文字深色
+        - 暗色：
+          * 恢复为默认（或暗色）样式
+        """
+        try:
+            bg = self.palette().window().color()
+            r, g, b = bg.red(), bg.green(), bg.blue()
+            luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+            is_light = luminance > 180
+
+            if is_light:
+                # 亮色模式：分组标题向下移动 5px，且底色透明
+                with contextlib.suppress(Exception):
+                    self.setStyleSheet(
+                        """
+                        QGroupBox#picGroup::title { padding-left: 10px; background-color: transparent; }
+                        QGroupBox#camGroup::title { padding-left: 10px; background-color: transparent; }
+                        QGroupBox#announceGroup::title { padding-left: 10px; background-color: transparent; }
+                        QGroupBox#helperGroup::title { padding-left: 10px; background-color: transparent; }
+                        """
+                    )
+                # 使用代理样式为复选框指示器添加黑色描边，保留系统的勾选渲染
+                try:
+                    base_style = self._orig_style_speak or self._auto_speak_chk.style()
+                    speak_style = KidsWindow._OutlineCheckBoxStyle(base=base_style, border_color=QColor(0, 0, 0))
+                    self._auto_speak_chk.setStyle(speak_style)
+                except Exception:
+                    pass
+                try:
+                    base_style2 = self._orig_style_intro or self._auto_intro_chk.style()
+                    intro_style = KidsWindow._OutlineCheckBoxStyle(base=base_style2, border_color=QColor(0, 0, 0))
+                    self._auto_intro_chk.setStyle(intro_style)
+                except Exception:
+                    pass
+                # 清空可能的样式表以避免覆盖系统绘制
+                with contextlib.suppress(Exception):
+                    self._auto_speak_chk.setStyleSheet("")
+                with contextlib.suppress(Exception):
+                    self._auto_intro_chk.setStyleSheet("")
+
+                # 预览：浅底深字
+                with contextlib.suppress(Exception):
+                    self._preview.setStyleSheet(
+                        "QLabel { background: #FAFAFA; color: #111111; font-size: 16px; font-weight: 600; border: 1px solid #000000; border-radius: 4px; }"
+                    )
+            else:
+                # 暗色模式：恢复（移除分组标题的 5px 下移）
+                with contextlib.suppress(Exception):
+                    self.setStyleSheet("")
+                # 暗色：恢复复选框原始样式（去掉代理描边）
+                with contextlib.suppress(Exception):
+                    if self._orig_style_speak is not None:
+                        self._auto_speak_chk.setStyle(self._orig_style_speak)
+                    else:
+                        self._auto_speak_chk.setStyle(QApplication.style())
+                with contextlib.suppress(Exception):
+                    if self._orig_style_intro is not None:
+                        self._auto_intro_chk.setStyle(self._orig_style_intro)
+                    else:
+                        self._auto_intro_chk.setStyle(QApplication.style())
+                with contextlib.suppress(Exception):
+                    self._auto_speak_chk.setStyleSheet("")
+                with contextlib.suppress(Exception):
+                    self._auto_intro_chk.setStyleSheet("")
+                with contextlib.suppress(Exception):
+                    self._preview.setStyleSheet(
+                        "QLabel { background: #202020; color: #C0C0C0; font-size: 16px; font-weight: 600; }"
+                    )
+        except Exception:
+            pass
+
+    def changeEvent(self, event) -> None:
+        """主题/调色板变化时，重新应用样式。"""
+        super().changeEvent(event)
+        try:
+            if event.type() == QEvent.Type.PaletteChange:
+                self._apply_theme_adaptive_styles()
+        except Exception:
+            pass
+
+    def resizeEvent(self, e):
+        """保持窗口等比缩放：尽量按照当前宽高比调整另一边尺寸。"""
+        if getattr(self, "_maintain_aspect", False) and not getattr(self, "_in_aspect_resize", False):
+            new_size = e.size()
+            old_size = e.oldSize()
+            w, h = new_size.width(), new_size.height()
+            ratio = getattr(self, "_aspect_ratio", None)
+            if not ratio or ratio <= 0:
+                try:
+                    ratio = max(1, self.width()) / max(1, self.height())
+                except Exception:
+                    ratio = 16 / 9
+                self._aspect_ratio = ratio
+            # 根据用户改变更明显的那个维度来回调另一个
+            try:
+                dw = abs(w - (old_size.width() if old_size.isValid() else w))
+                dh = abs(h - (old_size.height() if old_size.isValid() else h))
+            except Exception:
+                dw, dh = 0, 0
+            if dw >= dh:
+                # 优先以宽度为基准
+                h_target = int(round(w / ratio))
+                if h_target != h:
+                    self._in_aspect_resize = True
+                    try:
+                        self.resize(w, h_target)
+                    finally:
+                        self._in_aspect_resize = False
+                        return
+            else:
+                # 以高度为基准
+                w_target = int(round(h * ratio))
+                if w_target != w:
+                    self._in_aspect_resize = True
+                    try:
+                        self.resize(w_target, h)
+                    finally:
+                        self._in_aspect_resize = False
+                        return
+        # 默认行为
+        super().resizeEvent(e)
 
     # ---------- 子对话框 ----------
     def _open_game_dialog(self) -> None:
@@ -524,6 +722,38 @@ def main() -> None:
         pass
 
     app = QApplication(sys.argv)
+
+    try:
+        force_light = False
+        if os.getenv("SS_FORCE_LIGHT", "").strip().lower() in {"1", "true", "yes", "on"}:
+            force_light = True
+        if not force_light and any(arg.strip().lower() == "--force-light" for arg in sys.argv[1:]):
+            force_light = True
+        if force_light:
+            # 使用 Fusion 风格 + 浅色调色板
+            try:
+                app.setStyle("Fusion")
+            except Exception:
+                pass
+            pal = QPalette()
+            pal.setColor(QPalette.ColorRole.Window, QColor(255, 255, 255))
+            pal.setColor(QPalette.ColorRole.WindowText, QColor(17, 17, 17))
+            pal.setColor(QPalette.ColorRole.Base, QColor(250, 250, 250))
+            pal.setColor(QPalette.ColorRole.AlternateBase, QColor(242, 242, 242))
+            pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 220))
+            pal.setColor(QPalette.ColorRole.ToolTipText, QColor(17, 17, 17))
+            pal.setColor(QPalette.ColorRole.Text, QColor(17, 17, 17))
+            pal.setColor(QPalette.ColorRole.Button, QColor(245, 245, 245))
+            pal.setColor(QPalette.ColorRole.ButtonText, QColor(17, 17, 17))
+            pal.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
+            pal.setColor(QPalette.ColorRole.Highlight, QColor(66, 133, 244))
+            pal.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+            try:
+                app.setPalette(pal)
+            except Exception:
+                pass
+    except Exception:
+        pass
     win = KidsWindow()
     win.show()
     try:
