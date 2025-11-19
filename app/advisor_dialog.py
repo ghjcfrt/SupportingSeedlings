@@ -275,6 +275,57 @@ class AdvisorDialog(QDialog):
         except Exception:
             logging.exception("debug dump blocks failed: %s", label)
 
+    # --- 新增：去除结尾祝福语/署名 ---
+    def _remove_signature(self, text: str) -> str:
+        """移除模型回复末尾的祝福语、致谢与署名等（多行）。
+
+        处理逻辑：
+        1. 按行分割并去除首尾空行；
+        2. 从末尾向前，匹配常见祝福/署名模式（中英文）；
+        3. 逐行剔除，直到遇到非匹配行或剩余内容不足两行（防止误删主体）。
+        4. 返回重组文本（保留原有行结构）。
+
+        仅在末尾生效，避免正文中出现类似词语被误删。
+        """
+        raw = text.strip("\ufeff ")  # 清掉 BOM 与前后空白
+        if not raw:
+            return raw
+        lines = [ln.rstrip() for ln in raw.splitlines()]
+        # 常见祝福/致谢/署名关键词（简中 + 英文）
+        kw_prefix = [
+            "祝", "祝你", "祝您", "祝好", "祝福", "祝愿", "愿你", "愿您", "希望你", "希望您", "加油", "再次感谢", "感谢", "谢谢",
+            "Best", "Best wishes", "Best regards", "Regards", "Kind regards", "Thanks", "Thank you",
+        ]
+        # 署名中可能出现的助手身份关键词
+        name_tokens = ["心理助理", "助理", "智能助理", "AI助手", "AI助理", "机器人", "系统"]
+
+        def _is_sig_line(s: str) -> bool:
+            st = s.strip().strip("-—~*")
+            if not st:
+                return False
+            low = st.lower()
+            # 英文/中文祝福行简易匹配：以关键词开头，长度不过长
+            for pre in kw_prefix:
+                if low.startswith(pre.lower()) and len(st) <= 40:
+                    return True
+            # 署名（可能前有感谢）：如 "谢谢，心理助理" / "—— 心理助理"
+            for tk in name_tokens:
+                if tk in st and len(st) <= 40:
+                    # 避免正文里含助手词语被误删：要求行中不含句号之外的长句
+                    if st.count("。") <= 1 and st.count("，") <= 2:
+                        return True
+            return False
+
+        removed_any = False
+        # 至少保留一行主体；如果只有一行不处理。
+        while len(lines) > 1 and _is_sig_line(lines[-1]):
+            lines.pop()
+            removed_any = True
+        cleaned = "\n".join(lines).strip()
+        if removed_any:
+            logging.debug("[REPLY-CLEAN] signature removed. tail_after=%s", lines[-1] if lines else "<empty>")
+        return cleaned
+
     def _on_start(self) -> None:
         """ 开始新会话 """
         if self._advisor is None:
@@ -345,7 +396,8 @@ class AdvisorDialog(QDialog):
     @Slot(str)
     def _on_ask_done(self, reply: str) -> None:
         """ 处理心理助理回复 """
-        reply_clean = clean_advisor_reply(reply)
+        # 先进行既有的基础清理，再去掉模型常见的祝福/署名尾巴
+        reply_clean = self._remove_signature(clean_advisor_reply(reply))
 
         def _md_to_html(md: str) -> str:
             try:
@@ -481,6 +533,35 @@ class AdvisorDialog(QDialog):
                 self._ask_thread.quit()
             self._ask_thread = None
         self._inp.setEnabled(True)
+        self._btn_cancel.setEnabled(False)
+        self._insert_line("[系统]", "等待超时，请稍后重试或检查网络配置。")
+        if self._ask_thread:
+            with contextlib.suppress(Exception):
+                self._ask_thread.quit()
+            self._ask_thread = None
+        self._send.setEnabled(True)
+        self._inp.setEnabled(True)
+        self._btn_cancel.setEnabled(False)
+        self._insert_line("[系统]", "等待超时，请稍后重试或检查网络配置。")
+        if self._ask_thread:
+            with contextlib.suppress(Exception):
+                self._ask_thread.quit()
+            self._ask_thread = None
+        self._btn_cancel.setEnabled(False)
+        self._insert_line("[系统]", "等待超时，请稍后重试或检查网络配置。")
+        if self._ask_thread:
+            with contextlib.suppress(Exception):
+                self._ask_thread.quit()
+            self._ask_thread = None
+        self._send.setEnabled(True)
+        self._inp.setEnabled(True)
+        self._btn_cancel.setEnabled(False)
+        self._insert_line("[系统]", "等待超时，请稍后重试或检查网络配置。")
+        if self._ask_thread:
+            with contextlib.suppress(Exception):
+                self._ask_thread.quit()
+            self._ask_thread = None
+            self._ask_thread = None
         self._btn_cancel.setEnabled(False)
         self._insert_line("[系统]", "等待超时，请稍后重试或检查网络配置。")
         if self._ask_thread:

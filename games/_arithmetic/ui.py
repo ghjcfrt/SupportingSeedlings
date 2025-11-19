@@ -94,12 +94,3 @@ class ArithmeticDialog(QDialog):
             self._hint.setStyleSheet("color: #c62828;")
             self._hint.setText(f"再想想～ 正确答案是 {self._answer}")
             self._speak("再想想，我们一起看看正确答案。")
-            self._speak("再想想，我们一起看看正确答案。")
-        if val == self._answer:
-            self._hint.setStyleSheet("color: #2e7d32;")
-            self._hint.setText("答对啦！试试下一题～")
-            self._speak("答对啦！太棒了！")
-        else:
-            self._hint.setStyleSheet("color: #c62828;")
-            self._hint.setText(f"再想想～ 正确答案是 {self._answer}")
-            self._speak("再想想，我们一起看看正确答案。")
